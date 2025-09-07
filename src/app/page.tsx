@@ -11,7 +11,7 @@ import { Logo } from '@/components/icons';
 import ProgressTracker from '@/components/progress-tracker';
 import SummaryPanel from '@/components/summary-panel';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Download, ImageUp, Send, Sparkles } from 'lucide-react';

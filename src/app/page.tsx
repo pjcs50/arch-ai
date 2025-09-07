@@ -99,6 +99,12 @@ export default function Home() {
     setMessages(prev => [...prev, { id: Date.now() + Math.random(), sender, content, isRhetorical }]);
   }, []);
 
+  const handleUpdateRequirements = (newRequirements: Partial<Requirements>) => {
+    setRequirements(newRequirements);
+    addMessage('ai', 'I have updated your requirements. Please review them again and let me know if they are correct.', true);
+    setCurrentStageKey('confirmation');
+  };
+
   const handleSendMessage = useCallback(async (message: string) => {
     if (!message.trim() || isLoading) return;
 
@@ -346,7 +352,11 @@ export default function Home() {
           <h1 className="text-2xl font-headline font-bold text-primary">ArchAI</h1>
         </div>
         <ProgressTracker stages={Object.values(STAGE_TITLES)} currentStageIndex={currentStageIndex} />
-        <SummaryPanel requirements={requirements} />
+        <SummaryPanel 
+          requirements={requirements} 
+          onUpdateRequirements={handleUpdateRequirements}
+          isConversationDone={isConversationDone}
+        />
       </aside>
 
       <main className="flex flex-1 flex-col h-svh">

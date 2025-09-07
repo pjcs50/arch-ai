@@ -39,9 +39,25 @@ const generateFloorPlanFlow = ai.defineFlow(
     const {media} = await ai.generate({
       model: 'googleai/gemini-2.5-flash-image-preview',
       prompt: [
-        {text: `Generate a 2D, black and white floor plan with dimensions, labels, and architectural symbols based on the following architectural prompt. The floor plan should be clear, professional, and adhere to standard architectural conventions.
+        {text: `You are an expert architectural CAD technician. Your task is to generate a professional, high-quality 2D floor plan based on a set of requirements.
 
-      Architectural Prompt: ${input.architecturalPrompt}`},
+**CRITICAL INSTRUCTIONS:**
+1.  **Output Format:** Generate a single, clean, black and white 2D floor plan image.
+2.  **Text Legibility:** All text, including room labels and dimensions, MUST be clear, bold, and easily readable. Use a sans-serif font at a minimum effective size of 12pt. Do not use handwritten or overly stylized fonts.
+3.  **Dimensioning:**
+    *   All dimension lines must be clean, straight, and clearly associated with the specified walls or features.
+    *   Ensure the total square footage calculation is accurate and prominently displayed.
+    *   Include a graphical scale (e.g., 1/4" = 1'-0" or 1:50).
+4.  **Symbols and Details:**
+    *   Use standard architectural symbols for all elements.
+    *   Explicitly include door swing indicators for all doors.
+    *   Strategically place window symbols to maximize natural light as requested.
+    *   Include symbols for electrical outlets on walls in key areas like the kitchen, bedrooms, and living room.
+    *   Draw the specified kitchen island with seating clearly marked.
+5.  **Accuracy:** Adhere STRICTLY to the room counts and features specified in the prompt (e.g., exactly 4 bedrooms, 3.5 bathrooms).
+
+**Architectural Prompt to Execute:**
+${input.architecturalPrompt}`},
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],

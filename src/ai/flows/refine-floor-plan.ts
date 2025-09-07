@@ -74,7 +74,7 @@ Analyze the image for:
 - **Dimensions:** Ensure all dimension lines are straight, clear, and easy to read.
 - **Symbols:** Make sure all architectural symbols are clean and standard.
 
-Based on your analysis, write a concise but detailed correction prompt for an image generation model to *edit and fix* only these visual flaws.`;
+Based on your analysis, write a concise but detailed correction prompt for an image generation model to *edit and fix* only these visual flaws. Respond with ONLY the prompt text itself.`;
             
             const polishResponse = await ai.generate({
                 model: 'googleai/gemini-2.5-flash',

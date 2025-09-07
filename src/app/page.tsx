@@ -2,6 +2,7 @@
 
 import { generateArchitecturalPrompt } from '@/ai/flows/generate-architectural-prompt';
 import { generateFloorPlan } from '@/ai/flows/generate-floor-plan';
+import AnimatedLogo from '@/components/animated-logo';
 import ChatMessage from '@/components/chat-message';
 import { Logo } from '@/components/icons';
 import ProgressTracker from '@/components/progress-tracker';
@@ -11,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { ImageUp, LoaderCircle, Send } from 'lucide-react';
+import { ImageUp, Send } from 'lucide-react';
 import Image from 'next/image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -241,7 +242,7 @@ export default function Home() {
           {messages.map((msg) => (
             <ChatMessage key={msg.id} sender={msg.sender} content={msg.content} />
           ))}
-          {isLoading && <ChatMessage sender="ai" content={<LoaderCircle className="animate-spin" />} />}
+          {isLoading && <ChatMessage sender="ai" content={<AnimatedLogo />} />}
         </div>
         <div className="border-t bg-card p-4">
           <div className="relative">

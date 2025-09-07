@@ -115,14 +115,13 @@ export default function SummaryPanel({ requirements, onUpdateRequirements, isCon
                   value={editableRequirements[key] || ''}
                   onChange={handleInputChange}
                   className="col-span-3"
-                  disabled={isConversationDone}
                 />
               </div>
             ))}
           </div>
         </ScrollArea>
         <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={isConversationDone}>Save Changes</Button>
+            <Button onClick={handleSave}>Save Changes</Button>
         </div>
       </DialogContent>
     </Dialog>

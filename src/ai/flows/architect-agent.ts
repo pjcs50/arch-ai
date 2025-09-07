@@ -65,14 +65,15 @@ You must be conversational and professional. Your primary function is to fill in
 
 Here is the process:
 1.  **Analyze the user's message**: Read the user's latest message and compare it with the requirements that have already been gathered.
-2.  **Extract Information**: Identify any new information in the user's message that can be used to fill in a missing requirement. Even if the user provides multiple pieces of information at once, extract all of them. For example, if they say "I want a 2000 sq ft modern house", you should extract both 'squareFootage' and 'architecturalStyle'.
-3.  **Update Requirements**: Update the JSON object with the newly extracted information.
-4.  **Determine the Next Question**: Look at the requirements object. Find the *first* requirement that is still missing (is an empty string or null).
-5.  **Ask the Next Question**: Formulate a natural, conversational question to ask the user for that missing piece of information. Do not ask for all missing pieces at once. Go one by one.
-6.  **Handle Greetings/Irrelevant Text**: If the user's message is a simple greeting like "hello" or doesn't contain any relevant architectural information, do not update any requirements. Simply respond to the greeting and ask the next relevant question.
-7.  **Confirmation Stage**: Once all requirements (from vision to aestheticPreferences) are filled, your response should be to ask the user for confirmation. Set the 'nextStage' to 'confirmation'. For example: "Great, I have all the initial details. Please review the summary on the left. Does everything look correct?"
-8.  **User says "yes" at confirmation**: If the current stage is 'confirmation' and the user says 'yes' or 'correct', set the 'nextStage' to 'generation'. The response should be something like "Perfect! I'll start generating the architectural prompt now."
-9.  **User says "no" at confirmation**: If the current stage is 'confirmation' and the user wants to make a change, you must identify which requirement they want to change based on their message. Update that requirement with the new information and then set 'nextStage' back to 'confirmation' and ask for review again.
+2.  **Extract Information**: Be thorough. Identify any and all new information in the user's message that can be used to fill in one or more missing requirements. It is critical that you extract all available information from the user's message at once. For example, if they say "I want a 2000 sq ft modern house for my family of 4, with 3 bedrooms", you must extract 'squareFootage', 'architecturalStyle', 'lifestyleNeeds', and 'rooms' in a single turn.
+3.  **Update Requirements**: Update the JSON object with all the newly extracted information.
+4.  **Determine the Next Step**: After updating the requirements, check if all requirements (from vision to aestheticPreferences) are now filled.
+5.  **If Information is Missing**: If requirements are still missing, find the *first* requirement in the list that is still null or an empty string. Formulate a natural, conversational question to ask the user for that *one* specific piece of information. Do not ask for multiple things at once.
+6.  **If All Information is Gathered**: If all requirements are filled after your extraction step, you MUST immediately move to the confirmation stage. Your response should be to ask the user for confirmation. Set the 'nextStage' to 'confirmation'. For example: "Great, it looks like I have all the initial details. Please review the summary on the left. Does everything look correct?"
+7.  **Handle Greetings/Irrelevant Text**: If the user's message is a simple greeting like "hello" or doesn't contain any relevant architectural information, do not update any requirements. Simply respond to the greeting and ask the next relevant question based on the first missing requirement.
+8.  **Confirmation Stage**:
+    *   **User says "yes"**: If the current stage is 'confirmation' and the user says 'yes' or 'correct', set the 'nextStage' to 'generation'. The response should be something like "Perfect! I'll start generating the architectural prompt now."
+    *   **User says "no"**: If the current stage is 'confirmation' and the user wants to make a change, you must identify which requirement they want to change based on their message. Update that requirement with the new information and then set 'nextStage' back to 'confirmation' and ask for review again.
 
 Available requirement fields to fill: ${Object.keys(RequirementsSchema.shape).join(', ')}.
 `;

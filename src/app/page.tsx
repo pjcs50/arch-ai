@@ -107,11 +107,18 @@ export default function Home() {
       }));
 
     try {
+      console.log('Sending to architectAgent:', {
+        history: nonRhetoricalMessages,
+        requirements,
+        currentMessage: message,
+      });
       const result = await architectAgent({
         history: nonRhetoricalMessages as any,
         requirements,
         currentMessage: message,
       });
+      console.log('Received from architectAgent:', result);
+
 
       if(result.requirements) {
         setRequirements(result.requirements);
@@ -182,7 +189,7 @@ export default function Home() {
   }, []);
 
   const currentStageIndex = STAGE_KEYS.indexOf(currentStageKey);
-  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('generation');
+  const isConversationDone = currentStageIndex > STAGE_KEYS.indexOf('confirmation');
 
   useEffect(() => {
     const performGeneration = async () => {
@@ -190,11 +197,22 @@ export default function Home() {
           setIsLoading(true);
           addMessage('ai', "I'm now generating a detailed architectural prompt based on your vision. This may take a moment...", true);
           try {
-              const { architecturalPrompt } = await generateArchitecturalPrompt({
-                ...requirements,
-                numRooms: requirements.rooms, // Map rooms to numRooms
-                roomTypes: requirements.rooms, // and roomTypes
-              } as any);
+              const promptInput = {
+                squareFootage: requirements.squareFootage || '',
+                lotSize: requirements.lotSize || '',
+                numRooms: requirements.rooms || '',
+                roomTypes: requirements.rooms || '',
+                budget: requirements.budget || '',
+                architecturalStyle: requirements.architecturalStyle || '',
+                lifestyleNeeds: requirements.lifestyleNeeds || '',
+                specialRequirements: requirements.specialRequirements || '',
+                materialPreferences: requirements.materialPreferences || '',
+                aestheticPreferences: requirements.aestheticPreferences || '',
+                inspirationImage: requirements.inspirationImage || undefined,
+              };
+              console.log("Sending to generateArchitecturalPrompt:", promptInput);
+              const { architecturalPrompt } = await generateArchitecturalPrompt(promptInput);
+              console.log("Received architecturalPrompt:", architecturalPrompt);
               setRequirements(prev => ({...prev, architecturalPrompt: architecturalPrompt}));
               setCurrentStageKey('floorplan');
           } catch(e) {
@@ -207,11 +225,13 @@ export default function Home() {
           }
       }
 
-      if(currentStageKey === 'floorplan'){
+      if(currentStageKey === 'floorplan' && requirements.architecturalPrompt){
           setIsLoading(true);
           addMessage('ai', "Now, I'm creating a draft floor plan based on your prompt. This is an exciting step! This can take up to a minute.", true);
           try {
+              console.log("Sending to generateFloorPlan:", { architecturalPrompt: requirements.architecturalPrompt! });
               const { floorPlanImage } = await generateFloorPlan({ architecturalPrompt: requirements.architecturalPrompt! });
+              console.log("Received floorPlanImage");
               setRequirements(prev => ({...prev, floorPlanImage: floorPlanImage}));
               setCurrentStageKey('done');
           } catch(e) {
@@ -230,7 +250,7 @@ export default function Home() {
               {requirements.floorPlanImage && (
                 <Card className="bg-card/70">
                     <CardContent className="p-2">
-                        <Image src={requirements.floorPlanImage} alt="Generated Floor Plan" width={500} height={500} className="rounded-md w-full h-auto" />
+                        <Image src={requirements.floorPlanImage} alt="Generated Floor Plan" width={1024} height={768} className="rounded-md w-full h-auto" />
                     </CardContent>
                 </Card>
               )}
@@ -251,7 +271,7 @@ export default function Home() {
     }
     performGeneration();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStageKey, requirements.architecturalPrompt, addMessage, toast]);
+  }, [currentStageKey, addMessage, toast, requirements]);
 
 
   useEffect(() => {
@@ -320,5 +340,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

@@ -3,6 +3,8 @@
 import { architectAgent } from '@/ai/flows/architect-agent';
 import { generateArchitecturalPrompt } from '@/ai/flows/generate-architectural-prompt';
 import { generateFloorPlan } from '@/ai/flows/generate-floor-plan';
+import { refineFloorPlan } from '@/ai/flows/refine-floor-plan';
+import { generateInteriorVision } from '@/ai/flows/generate-interior-vision';
 import AnimatedLogo from '@/components/animated-logo';
 import ChatMessage from '@/components/chat-message';
 import { Logo } from '@/components/icons';
@@ -12,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, Download, ImageUp, Send } from 'lucide-react';
+import { Copy, Download, ImageUp, Send, Sparkles } from 'lucide-react';
 import Image from 'next/image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -31,6 +33,7 @@ type Requirements = {
   inspirationImage: string;
   architecturalPrompt: string;
   floorPlanImage: string;
+  interiorImage: string;
 };
 
 type Message = {
@@ -40,7 +43,7 @@ type Message = {
   isRhetorical?: boolean; // To prevent AI from responding to its own messages
 };
 
-const STAGE_KEYS: (keyof Requirements | 'introduction' | 'confirmation' | 'generation' | 'floorplan' | 'done')[] = [
+const STAGE_KEYS: (keyof Requirements | 'introduction' | 'confirmation' | 'generation' | 'refinement' | 'floorplan' | 'interior' | 'done')[] = [
   'introduction',
   'vision',
   'squareFootage',
@@ -54,7 +57,9 @@ const STAGE_KEYS: (keyof Requirements | 'introduction' | 'confirmation' | 'gener
   'aestheticPreferences',
   'confirmation',
   'generation',
+  'refinement',
   'floorplan',
+  'interior',
   'done',
 ];
 
@@ -72,7 +77,9 @@ const STAGE_TITLES: Record<string, string> = {
     aestheticPreferences: 'Aesthetics',
     confirmation: 'Confirmation',
     generation: 'Generating Prompt',
-    floorplan: 'Floor Plan',
+    refinement: 'Refining Floor Plan',
+    floorplan: 'Final Floor Plan',
+    interior: 'Interior Vision',
     done: 'Final Designs'
 };
 
@@ -142,10 +149,6 @@ export default function Home() {
       setIsLoading(false);
     }
   }, [isLoading, addMessage, toast, messages, requirements]);
-
-  const handleQuickReply = (reply: string) => {
-    handleSendMessage(reply);
-  };
   
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -167,15 +170,49 @@ export default function Home() {
     toast({ title: "Prompt copied to clipboard!" });
   };
 
-  const handleDownloadImage = (dataUrl: string) => {
+  const handleDownloadImage = (dataUrl: string, filename: string) => {
     const link = document.createElement('a');
     link.href = dataUrl;
-    link.download = 'floor-plan.png';
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast({ title: "Floor plan download started!" });
+    toast({ title: `${filename} download started!` });
   };
+
+  const handleGenerateInterior = async () => {
+    if(!requirements.floorPlanImage || !requirements.aestheticPreferences || !requirements.architecturalStyle) return;
+    setIsLoading(true);
+    addMessage('ai', "Creating an interior design vision based on your new floor plan. This is where the magic happens!", true);
+    setCurrentStageKey('interior');
+    try {
+        const { interiorImage } = await generateInteriorVision({
+            floorPlanImage: requirements.floorPlanImage,
+            aestheticPreferences: requirements.aestheticPreferences,
+            architecturalStyle: requirements.architecturalStyle,
+        });
+        setRequirements(prev => ({...prev, interiorImage: interiorImage}));
+        addMessage('ai', <div className="space-y-4">
+              <p>Here is an interior design concept for your main living space. This should give you a feel for the home's atmosphere.</p>
+              <Card className="bg-card/70">
+                  <CardContent className="p-2">
+                      <Image src={interiorImage} alt="Generated Interior Vision" width={1024} height={768} className="rounded-md w-full h-auto" />
+                  </CardContent>
+              </Card>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownloadImage(interiorImage, 'interior-vision.png')}><Download className="mr-2 h-4 w-4" />Download Interior Vision</Button>
+              </div>
+            </div>, true);
+        setCurrentStageKey('done');
+    } catch(e) {
+        console.error(e);
+        toast({ variant: 'destructive', title: 'Error Generating Interior Vision', description: 'Could not generate the interior design image.'});
+        addMessage('ai', 'There was an error generating the interior vision. We can proceed without it.');
+        setCurrentStageKey('done');
+    } finally {
+        setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (messages.length === 0 && !isLoading) {
@@ -189,10 +226,11 @@ export default function Home() {
   }, []);
 
   const currentStageIndex = STAGE_KEYS.indexOf(currentStageKey);
-  const isConversationDone = currentStageIndex > STAGE_KEYS.indexOf('confirmation');
+  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('confirmation');
 
   useEffect(() => {
     const performGeneration = async () => {
+      // Stage 1: Generate Architectural Prompt
       if(currentStageKey === 'generation' && requirements.rooms){
           setIsLoading(true);
           addMessage('ai', "I'm now generating a detailed architectural prompt based on your vision. This may take a moment...", true);
@@ -210,56 +248,74 @@ export default function Home() {
                 aestheticPreferences: requirements.aestheticPreferences || '',
                 inspirationImage: requirements.inspirationImage || undefined,
               };
-              console.log("Sending to generateArchitecturalPrompt:", promptInput);
               const { architecturalPrompt } = await generateArchitecturalPrompt(promptInput);
-              console.log("Received architecturalPrompt:", architecturalPrompt);
               setRequirements(prev => ({...prev, architecturalPrompt: architecturalPrompt}));
-              setCurrentStageKey('floorplan');
+              setCurrentStageKey('refinement'); // Go to refinement next
           } catch(e) {
               console.error(e)
               toast({ variant: 'destructive', title: 'Error Generating Prompt', description: 'Could not generate the architectural prompt.'});
               addMessage('ai', 'There was an error generating the prompt. Please try again later.');
-              setCurrentStageKey('confirmation'); // Go back to confirmation
+              setCurrentStageKey('confirmation'); // Go back
           } finally {
               setIsLoading(false);
           }
       }
 
-      if(currentStageKey === 'floorplan' && requirements.architecturalPrompt){
+      // Stage 2: Generate and then Refine Floor Plan
+      if(currentStageKey === 'refinement' && requirements.architecturalPrompt){
           setIsLoading(true);
-          addMessage('ai', "Now, I'm creating a draft floor plan based on your prompt. This is an exciting step! This can take up to a minute.", true);
+          addMessage('ai', "Creating a draft floor plan...", true);
           try {
-              console.log("Sending to generateFloorPlan:", { architecturalPrompt: requirements.architecturalPrompt! });
-              const { floorPlanImage } = await generateFloorPlan({ architecturalPrompt: requirements.architecturalPrompt! });
-              console.log("Received floorPlanImage");
-              setRequirements(prev => ({...prev, floorPlanImage: floorPlanImage}));
-              setCurrentStageKey('done');
+              // First, generate the initial floor plan
+              const { floorPlanImage: v1Image } = await generateFloorPlan({ architecturalPrompt: requirements.architecturalPrompt! });
+              
+              addMessage('ai', "Draft created. Now, I'll ask our Master Architect AI to review and refine it for accuracy and quality. This is the key step!", true);
+              
+              const allRequirements = Object.entries(requirements)
+                .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').toUpperCase()}: ${value}`)
+                .join('\n');
+
+              const { refinedFloorPlanImage } = await refineFloorPlan({
+                  floorPlanImage: v1Image,
+                  requirements: allRequirements,
+                  originalPrompt: requirements.architecturalPrompt!,
+              });
+
+              setRequirements(prev => ({...prev, floorPlanImage: refinedFloorPlanImage}));
+              setCurrentStageKey('floorplan');
+
           } catch(e) {
               console.error(e);
-              toast({ variant: 'destructive', title: 'Error Generating Floor Plan', description: 'Could not generate the floor plan image.'});
-              addMessage('ai', 'There was an error generating the floor plan. Please try again later.');
-              setCurrentStageKey('confirmation'); // Go back to confirmation
+              toast({ variant: 'destructive', title: 'Error Generating Floor Plan', description: 'Could not generate or refine the floor plan image.'});
+              addMessage('ai', 'There was an error during the floor plan creation process. Please try again later.');
+              setCurrentStageKey('confirmation'); // Go back
           } finally {
               setIsLoading(false);
           }
       }
 
-      if(currentStageKey === 'done' && requirements.architecturalPrompt && requirements.floorPlanImage){
+
+      // Stage 3: Display Final Floor Plan and Prompt
+      if(currentStageKey === 'floorplan' && requirements.architecturalPrompt && requirements.floorPlanImage){
           addMessage('ai', <div className="space-y-4">
-              <p>Here is the detailed architectural prompt for your dream home and the generated floor plan. You can use this with other generative design tools.</p>
+              <p>The final, refined floor plan is ready! I've incorporated feedback from our AI architect to ensure it's as accurate as possible.</p>
               {requirements.floorPlanImage && (
                 <Card className="bg-card/70">
                     <CardContent className="p-2">
-                        <Image src={requirements.floorPlanImage} alt="Generated Floor Plan" width={1024} height={768} className="rounded-md w-full h-auto" />
+                        <Image src={requirements.floorPlanImage} alt="Generated Floor Plan" width={1024} height={1024} className="rounded-md w-full h-auto" />
                     </CardContent>
                 </Card>
               )}
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleDownloadImage(requirements.floorPlanImage!)}><Download className="mr-2 h-4 w-4" />Download</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownloadImage(requirements.floorPlanImage!, 'floor-plan-refined.png')}><Download className="mr-2 h-4 w-4" />Download Floor Plan</Button>
+                <Button size="sm" onClick={handleGenerateInterior} disabled={isLoading}><Sparkles className="mr-2 h-4 w-4" />Generate Interior Vision</Button>
               </div>
 
               <Card className="bg-card/70">
-                <CardContent className="p-4 whitespace-pre-wrap font-code text-xs relative">
+                <CardHeader className="p-4">
+                    <CardTitle className="text-base">Architectural Prompt</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 whitespace-pre-wrap font-code text-xs relative">
                     <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={() => handleCopyToClipboard(requirements.architecturalPrompt!)}>
                         <Copy className="h-4 w-4" />
                     </Button>
@@ -267,6 +323,7 @@ export default function Home() {
                 </CardContent>
               </Card>
             </div>, true);
+            // Don't advance stage here, wait for user to click
       }
     }
     performGeneration();
@@ -320,7 +377,7 @@ export default function Home() {
                 variant="ghost" 
                 size="icon" 
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading || currentStageKey !== 'materialPreferences'}
+                disabled={isLoading || isConversationDone || currentStageKey !== 'materialPreferences'}
                 aria-label="Upload Image"
                 title="Upload Inspiration Image"
               >

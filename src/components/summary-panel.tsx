@@ -24,13 +24,15 @@ interface SummaryPanelProps {
 }
 
 const formatTitle = (key: string) => {
+    if (key === 'squareFootage') return 'Square Footage';
+    if (key === 'lotSize') return 'Lot Size';
     return key
       .replace(/([A-Z])/g, ' $1')
       .replace(/^./, str => str.toUpperCase());
   };
 
 export default function SummaryPanel({ requirements }: SummaryPanelProps) {
-    const requirementEntries = Object.entries(requirements).filter(([key]) => !['inspirationImage', 'architecturalPrompt', 'floorPlanImage'].includes(key));
+    const requirementEntries = Object.entries(requirements).filter(([key]) => !['inspirationImage', 'architecturalPrompt', 'floorPlanImage', 'vision'].includes(key) && requirements[key as keyof typeof requirements]);
 
   return (
     <Card className="flex-1 overflow-hidden shadow-lg">
@@ -39,6 +41,12 @@ export default function SummaryPanel({ requirements }: SummaryPanelProps) {
         <CardDescription>A summary of your preferences.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 h-[calc(100%-120px)] overflow-y-auto pr-2">
+        {requirements.vision && (
+            <div>
+                <p className="font-semibold text-muted-foreground">Vision</p>
+                <p className="text-sm text-foreground italic">"{String(requirements.vision)}"</p>
+            </div>
+        )}
         <ul className="space-y-3 text-sm">
           {requirementEntries.length > 0 ? (
             requirementEntries.map(([key, value]) => value && (
@@ -48,14 +56,14 @@ export default function SummaryPanel({ requirements }: SummaryPanelProps) {
               </li>
             ))
           ) : (
-            <p className="text-muted-foreground">Your requirements will appear here as you answer questions.</p>
+            !requirements.vision && <p className="text-muted-foreground">Your requirements will appear here as you answer questions.</p>
           )}
         </ul>
         {requirements.inspirationImage && (
             <div>
                 <p className="font-semibold text-muted-foreground mb-2">Inspiration</p>
                 <div className="relative aspect-video w-full overflow-hidden rounded-md">
-                     <Image src={requirements.inspirationImage} alt="Inspiration" layout="fill" objectFit="cover" />
+                     <Image src={requirements.inspirationImage} alt="Inspiration" fill objectFit="cover" />
                 </div>
             </div>
         )}

@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { ImageUp, Send } from 'lucide-react';
+import { Copy, Download, ImageUp, Send } from 'lucide-react';
 import Image from 'next/image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -56,8 +56,8 @@ const STAGES: Stage[] = [
   { key: 'materialPreferences', title: 'Materials & Look', question: "Let's get into the look and feel. What materials and aesthetic preferences do you have? You can also upload an inspiration image to help me visualize." },
   { key: 'confirmation', title: 'Confirmation', question: "Excellent! I've gathered the initial details. Please review them on the summary panel. Does everything look correct before we proceed?" },
   { key: 'generation', title: 'Generating Prompt', question: "I'm now generating a detailed architectural prompt based on your vision. This may take a moment..." },
-  { key: 'floorplan', title: 'Floor Plan', question: "Now, I'm creating a draft floor plan based on your prompt. This is an exciting step!" },
-  { key: 'done', title: 'Final Prompt', question: 'Here is the detailed architectural prompt for your dream home and the generated floor plan. You can use this with generative design tools to create a floor plan.' },
+  { key: 'floorplan', title: 'Floor Plan', question: "Now, I'm creating a draft floor plan based on your prompt. This is an exciting step! This can take up to a minute." },
+  { key: 'done', title: 'Final Designs', question: 'Here is the detailed architectural prompt for your dream home and the generated floor plan. You can use this with other generative design tools.' },
 ];
 
 export default function Home() {
@@ -70,16 +70,23 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const addMessage = (sender: 'user' | 'ai', content: React.ReactNode) => {
+  const addMessage = useCallback((sender: 'user' | 'ai', content: React.ReactNode) => {
     setMessages(prev => [...prev, { id: Date.now() + Math.random(), sender, content }]);
-  };
+  }, []);
 
   const processAIResponse = useCallback(async (currentInput: string, stage: Stage) => {
     if (stage.key === 'welcome') {
       setRequirements(prev => ({ ...prev, vision: currentInput }));
     } else if (stage.key !== 'confirmation' && stage.key !== 'generation' && stage.key !== 'floorplan' && stage.key !== 'done') {
       const key = stage.key as keyof Omit<Requirements, 'vision' | 'inspirationImage'>;
-      setRequirements(prev => ({ ...prev, [key]: currentInput }));
+
+      const keys = ['squareFootage', 'lotSize'];
+      if(keys.includes(key)) {
+        const [sq, lot] = currentInput.split(/,|\band\b/).map(s => s.trim());
+        setRequirements(prev => ({ ...prev, squareFootage: sq, lotSize: lot || '' }));
+      } else {
+        setRequirements(prev => ({ ...prev, [key]: currentInput }));
+      }
     }
 
     if (currentInput.toLowerCase().includes('yes') && stage.key === 'confirmation') {
@@ -90,7 +97,7 @@ export default function Home() {
     } else {
         setCurrentStageIndex(prev => prev + 1);
     }
-  }, []);
+  }, [addMessage]);
 
   const handleSendMessage = useCallback(async (message: string) => {
     if (!message.trim() || isLoading) return;
@@ -112,7 +119,7 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, currentStageIndex, processAIResponse, toast]);
+  }, [isLoading, currentStageIndex, processAIResponse, toast, addMessage]);
 
   const handleQuickReply = (reply: string) => {
     handleSendMessage(reply);
@@ -125,7 +132,7 @@ export default function Home() {
       reader.onloadend = () => {
         const base64String = reader.result as string;
         setRequirements(prev => ({...prev, inspirationImage: base64String}));
-        addMessage('user', `Uploaded ${file.name}`);
+        addMessage('user', <div className="flex items-center gap-2">Uploaded an inspiration image.</div>);
         addMessage('ai', "I've received your inspiration image. It will be a great reference!");
         toast({ title: "Image uploaded successfully!" });
       };
@@ -133,20 +140,50 @@ export default function Home() {
     }
   };
 
+  const handleCopyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Prompt copied to clipboard!" });
+  };
+
+  const handleDownloadImage = (dataUrl: string) => {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'floor-plan.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Floor plan download started!" });
+  };
+
   useEffect(() => {
-    if (messages.length === 0 && !isLoading) {
-      setIsLoading(true);
-      setTimeout(() => {
-        addMessage('ai', STAGES[0].question);
-        setIsLoading(false);
-      }, 1000);
+    const savedRequirements = localStorage.getItem('archai-requirements');
+    const savedMessages = localStorage.getItem('archai-messages');
+    const savedStage = localStorage.getItem('archai-stage');
+    if (savedRequirements && savedMessages && savedStage) {
+        setRequirements(JSON.parse(savedRequirements));
+        setMessages(JSON.parse(savedMessages));
+        setCurrentStageIndex(JSON.parse(savedStage));
+    } else {
+        setIsLoading(true);
+        setTimeout(() => {
+            addMessage('ai', STAGES[0].question);
+            setIsLoading(false);
+        }, 1000);
     }
-  }, [messages, isLoading]);
+  }, [addMessage]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+        localStorage.setItem('archai-requirements', JSON.stringify(requirements));
+        localStorage.setItem('archai-messages', JSON.stringify(messages));
+        localStorage.setItem('archai-stage', JSON.stringify(currentStageIndex));
+    }
+  }, [requirements, messages, currentStageIndex]);
 
   useEffect(() => {
     const currentStage = STAGES[currentStageIndex];
-    if (currentStage) {
-      if(currentStage.key !== 'welcome' && !['generation', 'floorplan', 'done'].includes(currentStage.key)) {
+    if (currentStage && messages.length > 0) {
+      if(currentStage.key !== 'welcome' && !['generation', 'floorplan', 'done'].includes(currentStage.key) && messages[messages.length - 1]?.sender === 'user') {
         const quickReplies = currentStage.quickReplies ? (
           <div className="flex flex-wrap gap-2 mt-2">
             {currentStage.quickReplies.map(reply => (
@@ -191,6 +228,7 @@ export default function Home() {
                 setRequirements(prev => ({...prev, floorPlanImage: floorPlanImage}));
                 setCurrentStageIndex(prev => prev + 1);
             } catch(e) {
+                console.error(e);
                 toast({ variant: 'destructive', title: 'Error Generating Floor Plan', description: 'Could not generate the floor plan image.'});
                 addMessage('ai', 'There was an error generating the floor plan. Please try again later.');
             } finally {
@@ -200,24 +238,33 @@ export default function Home() {
         createFloorPlan();
       }
 
-      if(currentStage.key === 'done'){
+      if(currentStage.key === 'done' && requirements.architecturalPrompt && requirements.floorPlanImage){
           addMessage('ai', <div className="space-y-4">
               <p>{currentStage.question}</p>
               {requirements.floorPlanImage && (
-                <Card className="bg-background/70">
-                    <CardContent className="p-4">
-                        <Image src={requirements.floorPlanImage} alt="Generated Floor Plan" width={500} height={300} className="rounded-md" />
+                <Card className="bg-card/70">
+                    <CardContent className="p-2">
+                        <Image src={requirements.floorPlanImage} alt="Generated Floor Plan" width={500} height={500} className="rounded-md w-full h-auto" />
                     </CardContent>
                 </Card>
               )}
-              <Card className="bg-background/70">
-                <CardContent className="p-4 whitespace-pre-wrap font-code text-sm">{requirements.architecturalPrompt}</CardContent>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownloadImage(requirements.floorPlanImage!)}><Download className="mr-2 h-4 w-4" />Download</Button>
+              </div>
+
+              <Card className="bg-card/70">
+                <CardContent className="p-4 whitespace-pre-wrap font-code text-xs relative">
+                    <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={() => handleCopyToClipboard(requirements.architecturalPrompt!)}>
+                        <Copy className="h-4 w-4" />
+                    </Button>
+                    {requirements.architecturalPrompt}
+                </CardContent>
               </Card>
             </div>);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStageIndex]);
+  }, [currentStageIndex, requirements.architecturalPrompt]);
 
   useEffect(() => {
     chatContainerRef.current?.scrollTo({
@@ -242,7 +289,7 @@ export default function Home() {
           {messages.map((msg) => (
             <ChatMessage key={msg.id} sender={msg.sender} content={msg.content} />
           ))}
-          {isLoading && <ChatMessage sender="ai" content={<AnimatedLogo />} />}
+          {isLoading && <ChatMessage sender="ai" content={<div className="flex items-center gap-2"><AnimatedLogo /><span>Thinking...</span></div>} />}
         </div>
         <div className="border-t bg-card p-4">
           <div className="relative">
@@ -267,6 +314,7 @@ export default function Home() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isLoading || STAGES[currentStageIndex]?.key !== 'materialPreferences'}
                 aria-label="Upload Image"
+                title="Upload Inspiration Image"
               >
                 <ImageUp className="h-5 w-5" />
               </Button>

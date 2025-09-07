@@ -32,7 +32,7 @@ export default function ChatMessage({ sender, content }: ChatMessageProps) {
           'max-w-[75%] rounded-lg px-4 py-3 shadow-md',
           isUser
             ? 'bg-primary text-primary-foreground'
-            : 'bg-muted'
+            : 'bg-card border'
         )}
       >
         {typeof content === 'string' ? (

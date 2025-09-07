@@ -28,29 +28,24 @@ export async function generateFloorPlan(input: GenerateFloorPlanInput): Promise<
   return generateFloorPlanFlow(input);
 }
 
-const prompt = ai.definePrompt({
-  name: 'generateFloorPlanPrompt',
-  input: {schema: GenerateFloorPlanInputSchema},
-  output: {schema: GenerateFloorPlanOutputSchema},
-  prompt: `Generate a 2D, black and white floor plan based on the following architectural prompt. The floor plan should be clear, professional, and adhere to standard architectural conventions.
-
-  Architectural Prompt: {{{architecturalPrompt}}}
-  
-  Generate the floor plan image.`,
-  model: 'googleai/imagen-4.0-fast-generate-001',
-  response: {
-    format: 'media',
-  }
-});
-
 const generateFloorPlanFlow = ai.defineFlow(
   {
     name: 'generateFloorPlanFlow',
     inputSchema: GenerateFloorPlanInputSchema,
     outputSchema: GenerateFloorPlanOutputSchema,
   },
-  async input => {
-    const {media} = await prompt(input);
+  async (input) => {
+    const {media} = await ai.generate({
+      model: 'googleai/imagen-4.0-fast-generate-001',
+      prompt: `Generate a 2D, black and white floor plan with dimensions, labels, and architectural symbols based on the following architectural prompt. The floor plan should be clear, professional, and adhere to standard architectural conventions.
+
+      Architectural Prompt: ${input.architecturalPrompt}`,
+    });
+    
+    if (!media.url) {
+      throw new Error('Image generation failed.');
+    }
+
     return { floorPlanImage: media.url };
   }
 );

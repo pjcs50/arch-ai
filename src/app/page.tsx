@@ -99,9 +99,9 @@ export default function Home() {
     setInput('');
     setIsLoading(true);
 
-    const nonRhetoricalMessages = messages.filter(m => !m.isRhetorical).map(m => ({
+    const nonRhetoricalMessages = messages.filter(m => !m.isRhetorical && typeof m.content === 'string').map(m => ({
         role: m.sender === 'user' ? 'user' : 'model',
-        content: m.content
+        content: [{ text: m.content as string }]
     }));
 
     try {

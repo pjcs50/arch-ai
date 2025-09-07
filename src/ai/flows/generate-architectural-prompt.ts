@@ -1,6 +1,4 @@
-// src/ai/flows/generate-architectural-prompt.ts
 'use server';
-
 /**
  * @fileOverview Generates a detailed architectural prompt based on user-provided home design requirements.
  *
@@ -16,13 +14,33 @@ const GenerateArchitecturalPromptInputSchema = z.object({
   squareFootage: z.string().describe('Total square footage of the house.'),
   lotSize: z.string().describe('Size of the lot.'),
   numRooms: z.string().describe('Number of rooms in the house.'),
-  roomTypes: z.string().describe('Types of rooms needed (e.g., bedrooms, bathrooms, kitchen, office).'),
+  roomTypes: z
+    .string()
+    .describe(
+      'Types of rooms needed (e.g., bedrooms, bathrooms, kitchen, office).'
+    ),
   budget: z.string().describe('Budget range for the project.'),
-  architecturalStyle: z.string().describe('Preferred architectural style (e.g., modern, traditional, contemporary).'),
-  lifestyleNeeds: z.string().describe('Lifestyle needs and preferences (e.g., work from home, entertainment, family size).'),
-  specialRequirements: z.string().describe('Any special requirements (e.g., accessibility, sustainability).'),
-  materialPreferences: z.string().describe('Material preferences for construction and finishes.'),
-  aestheticPreferences: z.string().describe('Aesthetic preferences for the house.'),
+  architecturalStyle: z
+    .string()
+    .describe(
+      'Preferred architectural style (e.g., modern, traditional, contemporary).'
+    ),
+  lifestyleNeeds: z
+    .string()
+    .describe(
+      'Lifestyle needs and preferences (e.g., work from home, entertainment, family size).'
+    ),
+  specialRequirements: z
+    .string()
+    .describe(
+      'Any special requirements (e.g., accessibility, sustainability).'
+    ),
+  materialPreferences: z
+    .string()
+    .describe('Material preferences for construction and finishes.'),
+  aestheticPreferences: z
+    .string()
+    .describe('Aesthetic preferences for the house.'),
   inspirationImage: z
     .string()
     .describe(
@@ -31,13 +49,19 @@ const GenerateArchitecturalPromptInputSchema = z.object({
     .optional(),
 });
 
-export type GenerateArchitecturalPromptInput = z.infer<typeof GenerateArchitecturalPromptInputSchema>;
+export type GenerateArchitecturalPromptInput = z.infer<
+  typeof GenerateArchitecturalPromptInputSchema
+>;
 
 const GenerateArchitecturalPromptOutputSchema = z.object({
-  architecturalPrompt: z.string().describe('A detailed architectural prompt for generating a floor plan.'),
+  architecturalPrompt: z
+    .string()
+    .describe('A detailed architectural prompt for generating a floor plan.'),
 });
 
-export type GenerateArchitecturalPromptOutput = z.infer<typeof GenerateArchitecturalPromptOutputSchema>;
+export type GenerateArchitecturalPromptOutput = z.infer<
+  typeof GenerateArchitecturalPromptOutputSchema
+>;
 
 export async function generateArchitecturalPrompt(
   input: GenerateArchitecturalPromptInput
@@ -74,7 +98,7 @@ const generateArchitecturalPromptFlow = ai.defineFlow(
     inputSchema: GenerateArchitecturalPromptInputSchema,
     outputSchema: GenerateArchitecturalPromptOutputSchema,
   },
-  async input => {
+  async (input) => {
     const {output} = await prompt(input);
     return output!;
   }

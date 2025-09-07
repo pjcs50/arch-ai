@@ -1,5 +1,6 @@
 "use client";
 
+import { architectAgent } from '@/ai/flows/architect-agent';
 import { generateArchitecturalPrompt } from '@/ai/flows/generate-architectural-prompt';
 import { generateFloorPlan } from '@/ai/flows/generate-floor-plan';
 import AnimatedLogo from '@/components/animated-logo';
@@ -11,11 +12,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import { Copy, Download, ImageUp, Send } from 'lucide-react';
 import Image from 'next/image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
+// Keep the same type definition for requirements
 type Requirements = {
   vision: string;
   squareFootage: string;
@@ -36,68 +37,60 @@ type Message = {
   id: number;
   sender: 'user' | 'ai';
   content: React.ReactNode;
+  isRhetorical?: boolean; // To prevent AI from responding to its own messages
 };
 
-type Stage = {
-  key: keyof Requirements | 'welcome' | 'confirmation' | 'generation' | 'floorplan' | 'done';
-  title: string;
-  question: string;
-  quickReplies?: string[];
-};
-
-const STAGES: Stage[] = [
-  { key: 'welcome', title: 'Introduction', question: "Welcome to ArchAI, your personal AI architect! I'm here to help you conceptualize and design your dream home. To start, could you tell me a little about your overall vision?" },
-  { key: 'squareFootage', title: 'Sizing', question: "Great vision! Now let's talk about the scale. What's the total square footage you're imagining for the house, and what's the size of the lot?" },
-  { key: 'rooms', title: 'Rooms', question: 'Perfect. How many rooms are you picturing, and what kinds of spaces are essential for you (e.g., 3 bedrooms, 2.5 bathrooms, a home office, a gym)?' },
-  { key: 'budget', title: 'Budget', question: 'What is your estimated budget range for this project? This helps in suggesting appropriate materials and complexity.' },
-  { key: 'architecturalStyle', title: 'Style', question: 'What architectural style are you drawn to? Feel free to describe it, or select from some common styles below.', quickReplies: ['Modern', 'Traditional', 'Contemporary', 'Minimalist', 'Industrial', 'Farmhouse'] },
-  { key: 'lifestyleNeeds', title: 'Lifestyle', question: 'How do you see yourself living in this home? For example, do you work from home, entertain often, or have a large family?' },
-  { key: 'specialRequirements', title: 'Special Needs', question: 'Are there any special requirements to consider, such as accessibility (like ramps or elevators), eco-friendly/sustainable design, or smart home features?' },
-  { key: 'materialPreferences', title: 'Materials & Look', question: "Let's get into the look and feel. What materials and aesthetic preferences do you have? You can also upload an inspiration image to help me visualize." },
-  { key: 'confirmation', title: 'Confirmation', question: "Excellent! I've gathered the initial details. Please review them on the summary panel. Does everything look correct before we proceed?" },
-  { key: 'generation', title: 'Generating Prompt', question: "I'm now generating a detailed architectural prompt based on your vision. This may take a moment..." },
-  { key: 'floorplan', title: 'Floor Plan', question: "Now, I'm creating a draft floor plan based on your prompt. This is an exciting step! This can take up to a minute." },
-  { key: 'done', title: 'Final Designs', question: 'Here is the detailed architectural prompt for your dream home and the generated floor plan. You can use this with other generative design tools.' },
+const STAGE_KEYS: (keyof Requirements | 'introduction' | 'confirmation' | 'generation' | 'floorplan' | 'done')[] = [
+  'introduction',
+  'vision',
+  'squareFootage',
+  'lotSize',
+  'rooms',
+  'budget',
+  'architecturalStyle',
+  'lifestyleNeeds',
+  'specialRequirements',
+  'materialPreferences',
+  'aestheticPreferences',
+  'confirmation',
+  'generation',
+  'floorplan',
+  'done',
 ];
+
+const STAGE_TITLES: Record<string, string> = {
+    introduction: 'Introduction',
+    vision: 'Vision',
+    squareFootage: 'Sizing',
+    lotSize: 'Lot Size',
+    rooms: 'Rooms',
+    budget: 'Budget',
+    architecturalStyle: 'Style',
+    lifestyleNeeds: 'Lifestyle',
+    specialRequirements: 'Special Needs',
+    materialPreferences: 'Materials & Look',
+    aestheticPreferences: 'Aesthetics',
+    confirmation: 'Confirmation',
+    generation: 'Generating Prompt',
+    floorplan: 'Floor Plan',
+    done: 'Final Designs'
+};
+
 
 export default function Home() {
   const [requirements, setRequirements] = useState<Partial<Requirements>>({});
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [currentStageKey, setCurrentStageKey] = useState<string>('introduction');
+  
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const addMessage = useCallback((sender: 'user' | 'ai', content: React.ReactNode) => {
-    setMessages(prev => [...prev, { id: Date.now() + Math.random(), sender, content }]);
+  const addMessage = useCallback((sender: 'user' | 'ai', content: React.ReactNode, isRhetorical = false) => {
+    setMessages(prev => [...prev, { id: Date.now() + Math.random(), sender, content, isRhetorical }]);
   }, []);
-
-  const processAIResponse = useCallback(async (currentInput: string, stage: Stage) => {
-    if (stage.key === 'welcome') {
-      setRequirements(prev => ({ ...prev, vision: currentInput }));
-    } else if (stage.key !== 'confirmation' && stage.key !== 'generation' && stage.key !== 'floorplan' && stage.key !== 'done') {
-      const key = stage.key as keyof Omit<Requirements, 'vision' | 'inspirationImage'>;
-
-      const keys = ['squareFootage', 'lotSize'];
-      if(keys.includes(key)) {
-        const [sq, lot] = currentInput.split(/,|\band\b/).map(s => s.trim());
-        setRequirements(prev => ({ ...prev, squareFootage: sq, lotSize: lot || '' }));
-      } else {
-        setRequirements(prev => ({ ...prev, [key]: currentInput }));
-      }
-    }
-
-    if (currentInput.toLowerCase().includes('yes') && stage.key === 'confirmation') {
-        setCurrentStageIndex(prev => prev + 1);
-    } else if (stage.key === 'confirmation') {
-        addMessage('ai', "No problem. Which part would you like to change? Just tell me the section and the new details.");
-        setCurrentStageIndex(STAGES.findIndex(s => s.key === 'squareFootage')); // Go back to start of questions
-    } else {
-        setCurrentStageIndex(prev => prev + 1);
-    }
-  }, [addMessage]);
 
   const handleSendMessage = useCallback(async (message: string) => {
     if (!message.trim() || isLoading) return;
@@ -106,8 +99,28 @@ export default function Home() {
     setInput('');
     setIsLoading(true);
 
+    const nonRhetoricalMessages = messages.filter(m => !m.isRhetorical).map(m => ({
+        role: m.sender === 'user' ? 'user' : 'model',
+        content: m.content
+    }));
+
     try {
-      await processAIResponse(message, STAGES[currentStageIndex]);
+      const result = await architectAgent({
+        history: nonRhetoricalMessages as any,
+        requirements,
+        currentMessage: message,
+      });
+
+      if(result.requirements) {
+        setRequirements(result.requirements);
+      }
+      
+      if(result.nextStage) {
+        setCurrentStageKey(result.nextStage);
+      }
+      
+      addMessage('ai', result.response);
+
     } catch (error) {
       console.error(error);
       toast({
@@ -115,11 +128,11 @@ export default function Home() {
         title: "An error occurred",
         description: "Failed to get a response from the AI. Please try again.",
       });
-      addMessage('ai', "I seem to be having some trouble connecting. Could you try that again?");
+      addMessage('ai', "I seem to be have some trouble connecting. Could you try that again?");
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, currentStageIndex, processAIResponse, toast, addMessage]);
+  }, [isLoading, addMessage, toast, messages, requirements]);
 
   const handleQuickReply = (reply: string) => {
     handleSendMessage(reply);
@@ -132,8 +145,8 @@ export default function Home() {
       reader.onloadend = () => {
         const base64String = reader.result as string;
         setRequirements(prev => ({...prev, inspirationImage: base64String}));
-        addMessage('user', <div className="flex items-center gap-2">Uploaded an inspiration image.</div>);
-        addMessage('ai', "I've received your inspiration image. It will be a great reference!");
+        addMessage('user', <div className="flex items-center gap-2">Uploaded an inspiration image.</div>, true);
+        addMessage('ai', "I've received your inspiration image. It will be a great reference!", true);
         toast({ title: "Image uploaded successfully!" });
       };
       reader.readAsDataURL(file);
@@ -156,91 +169,57 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const savedRequirements = localStorage.getItem('archai-requirements');
-    const savedMessages = localStorage.getItem('archai-messages');
-    const savedStage = localStorage.getItem('archai-stage');
-    if (savedRequirements && savedMessages && savedStage) {
-        setRequirements(JSON.parse(savedRequirements));
-        setMessages(JSON.parse(savedMessages));
-        setCurrentStageIndex(JSON.parse(savedStage));
-    } else {
-        setIsLoading(true);
-        setTimeout(() => {
-            addMessage('ai', STAGES[0].question);
-            setIsLoading(false);
-        }, 1000);
+    if (messages.length === 0 && !isLoading) {
+      setIsLoading(true);
+      setTimeout(() => {
+          addMessage('ai', "Welcome to ArchAI, your personal AI architect! I'm here to help you conceptualize and design your dream home. To start, could you tell me a little about your overall vision?");
+          setIsLoading(false);
+      }, 1000);
     }
-  }, [addMessage]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const currentStageIndex = STAGE_KEYS.indexOf(currentStageKey);
+  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('confirmation');
 
   useEffect(() => {
-    if (messages.length > 0) {
-        localStorage.setItem('archai-requirements', JSON.stringify(requirements));
-        localStorage.setItem('archai-messages', JSON.stringify(messages));
-        localStorage.setItem('archai-stage', JSON.stringify(currentStageIndex));
-    }
-  }, [requirements, messages, currentStageIndex]);
-
-  useEffect(() => {
-    const currentStage = STAGES[currentStageIndex];
-    if (currentStage && messages.length > 0) {
-      if(currentStage.key !== 'welcome' && !['generation', 'floorplan', 'done'].includes(currentStage.key) && messages[messages.length - 1]?.sender === 'user') {
-        const quickReplies = currentStage.quickReplies ? (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {currentStage.quickReplies.map(reply => (
-              <Button key={reply} variant="outline" size="sm" onClick={() => handleQuickReply(reply)}>{reply}</Button>
-            ))}
-          </div>
-        ) : null;
-        
-        const messageContent = (
-          <div>
-            <p>{currentStage.question}</p>
-            {quickReplies}
-          </div>
-        );
-        addMessage('ai', messageContent);
-      }
-      
-      if(currentStage.key === 'generation'){
-        const generatePrompt = async () => {
-            setIsLoading(true);
-            addMessage('ai', currentStage.question);
-            try {
-                const { architecturalPrompt } = await generateArchitecturalPrompt(requirements as any);
-                setRequirements(prev => ({...prev, architecturalPrompt: architecturalPrompt}));
-                setCurrentStageIndex(prev => prev + 1);
-            } catch(e) {
-                toast({ variant: 'destructive', title: 'Error Generating Prompt', description: 'Could not generate the architectural prompt.'});
-                addMessage('ai', 'There was an error generating the prompt. Please try again later.');
-            } finally {
-                setIsLoading(false);
-            }
-        }
-        generatePrompt();
+    const performGeneration = async () => {
+      if(currentStageKey === 'generation'){
+          setIsLoading(true);
+          addMessage('ai', "I'm now generating a detailed architectural prompt based on your vision. This may take a moment...", true);
+          try {
+              const { architecturalPrompt } = await generateArchitecturalPrompt(requirements as any);
+              setRequirements(prev => ({...prev, architecturalPrompt: architecturalPrompt}));
+              setCurrentStageKey('floorplan');
+          } catch(e) {
+              toast({ variant: 'destructive', title: 'Error Generating Prompt', description: 'Could not generate the architectural prompt.'});
+              addMessage('ai', 'There was an error generating the prompt. Please try again later.');
+              setCurrentStageKey('confirmation'); // Go back to confirmation
+          } finally {
+              setIsLoading(false);
+          }
       }
 
-      if(currentStage.key === 'floorplan'){
-        const createFloorPlan = async () => {
-            setIsLoading(true);
-            addMessage('ai', currentStage.question);
-            try {
-                const { floorPlanImage } = await generateFloorPlan({ architecturalPrompt: requirements.architecturalPrompt! });
-                setRequirements(prev => ({...prev, floorPlanImage: floorPlanImage}));
-                setCurrentStageIndex(prev => prev + 1);
-            } catch(e) {
-                console.error(e);
-                toast({ variant: 'destructive', title: 'Error Generating Floor Plan', description: 'Could not generate the floor plan image.'});
-                addMessage('ai', 'There was an error generating the floor plan. Please try again later.');
-            } finally {
-                setIsLoading(false);
-            }
-        }
-        createFloorPlan();
+      if(currentStageKey === 'floorplan'){
+          setIsLoading(true);
+          addMessage('ai', "Now, I'm creating a draft floor plan based on your prompt. This is an exciting step! This can take up to a minute.", true);
+          try {
+              const { floorPlanImage } = await generateFloorPlan({ architecturalPrompt: requirements.architecturalPrompt! });
+              setRequirements(prev => ({...prev, floorPlanImage: floorPlanImage}));
+              setCurrentStageKey('done');
+          } catch(e) {
+              console.error(e);
+              toast({ variant: 'destructive', title: 'Error Generating Floor Plan', description: 'Could not generate the floor plan image.'});
+              addMessage('ai', 'There was an error generating the floor plan. Please try again later.');
+              setCurrentStageKey('confirmation'); // Go back to confirmation
+          } finally {
+              setIsLoading(false);
+          }
       }
 
-      if(currentStage.key === 'done' && requirements.architecturalPrompt && requirements.floorPlanImage){
+      if(currentStageKey === 'done' && requirements.architecturalPrompt && requirements.floorPlanImage){
           addMessage('ai', <div className="space-y-4">
-              <p>{currentStage.question}</p>
+              <p>Here is the detailed architectural prompt for your dream home and the generated floor plan. You can use this with other generative design tools.</p>
               {requirements.floorPlanImage && (
                 <Card className="bg-card/70">
                     <CardContent className="p-2">
@@ -260,11 +239,13 @@ export default function Home() {
                     {requirements.architecturalPrompt}
                 </CardContent>
               </Card>
-            </div>);
+            </div>, true);
       }
     }
+    performGeneration();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStageIndex, requirements.architecturalPrompt]);
+  }, [currentStageKey, requirements.architecturalPrompt, addMessage, toast]);
+
 
   useEffect(() => {
     chatContainerRef.current?.scrollTo({
@@ -280,7 +261,7 @@ export default function Home() {
           <Logo className="h-8 w-8 text-primary" />
           <h1 className="text-2xl font-headline font-bold text-primary">ArchAI</h1>
         </div>
-        <ProgressTracker stages={STAGES.map(s => s.title)} currentStageIndex={currentStageIndex} />
+        <ProgressTracker stages={Object.values(STAGE_TITLES)} currentStageIndex={currentStageIndex} />
         <SummaryPanel requirements={requirements} />
       </aside>
 
@@ -304,7 +285,7 @@ export default function Home() {
               }}
               placeholder="Type your message here..."
               className="pr-24 min-h-[48px] resize-none"
-              disabled={isLoading || currentStageIndex >= STAGES.findIndex(s => s.key === 'confirmation')}
+              disabled={isLoading || isConversationDone}
             />
             <div className="absolute top-1/2 -translate-y-1/2 right-3 flex gap-2">
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
@@ -312,7 +293,7 @@ export default function Home() {
                 variant="ghost" 
                 size="icon" 
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading || STAGES[currentStageIndex]?.key !== 'materialPreferences'}
+                disabled={isLoading || currentStageKey !== 'materialPreferences'}
                 aria-label="Upload Image"
                 title="Upload Inspiration Image"
               >
@@ -320,7 +301,7 @@ export default function Home() {
               </Button>
               <Button 
                 onClick={() => handleSendMessage(input)} 
-                disabled={isLoading || !input.trim() || currentStageIndex >= STAGES.findIndex(s => s.key === 'confirmation')}
+                disabled={isLoading || !input.trim() || isConversationDone}
                 aria-label="Send Message"
               >
                 <Send className="h-5 w-5" />

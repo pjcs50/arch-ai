@@ -14,6 +14,11 @@ export default function ProgressTracker({ stages, currentStageIndex }: ProgressT
       <h2 className="text-lg font-headline font-semibold mb-4">Your Progress</h2>
       <ul className="space-y-4">
         {stages.map((stage, index) => {
+          // Don't show the introduction step in the progress tracker
+          if (stage.toLowerCase() === 'introduction') {
+            return null;
+          }
+          
           const isCompleted = index < currentStageIndex;
           const isCurrent = index === currentStageIndex;
           

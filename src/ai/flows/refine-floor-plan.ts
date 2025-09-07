@@ -46,14 +46,14 @@ const refineFloorPlanFlow = ai.defineFlow(
     inputSchema: RefineFloorPlanInputSchema,
     outputSchema: RefineFloorPlanOutputSchema,
   },
-  async ({ floorPlanImage, requirements }) => {
+  async ({ floorPlanImage, requirements, originalPrompt }) => {
     let currentImage = floorPlanImage;
 
     // PASS 1: Major architectural and functional critique
     console.log('Refining plan (Pass 1 of 2): Major architectural review...');
     const pass1Prompt = `You are a Master Architect. Your task is to critique and EDIT the provided floor plan image to fix major flaws.
       
-Compare the floor plan to the user's requirements below and correct all inconsistencies, including:
+Compare the floor plan to the user's requirements and the original generation prompt below. Correct all inconsistencies, including:
 - Incorrect room counts, sizes, or layouts.
 - Violations of universal design principles (e.g., poor circulation, bad zoning).
 - Mismatches with the requested architectural style.
@@ -61,7 +61,10 @@ Compare the floor plan to the user's requirements below and correct all inconsis
 Edit the image to resolve these issues directly, outputting a corrected black and white 2D floor plan.
 
 USER REQUIREMENTS:
-${requirements}`;
+${requirements}
+
+ORIGINAL PROMPT:
+${originalPrompt}`;
     
     const pass1Result = await ai.generate({
         model: 'googleai/gemini-2.5-flash-image-preview',

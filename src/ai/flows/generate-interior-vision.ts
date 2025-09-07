@@ -45,13 +45,17 @@ const generateInteriorVisionFlow = ai.defineFlow(
     const {media} = await ai.generate({
       model: 'googleai/gemini-2.5-flash-image-preview',
       prompt: [
-        {text: `Based on the provided floor plan, generate a single, photo-realistic interior design rendering of the main living area (kitchen and great room).
+        {text: `**Objective:** Transform the provided 2D floor plan into a single, photo-realistic, fully furnished 3D interior rendering.
 
-The design must be consistent with the following style and aesthetic:
-- Architectural Style: ${architecturalStyle}
-- Aesthetic Preferences: ${aestheticPreferences}
+**Viewpoint:** The output image must be a **top-down axonometric view** (a "dollhouse" view) with a slight angle, so the walls have height and the furniture is clearly visible in 3D. Do not produce a flat, 2D image.
 
-The rendering should be from a human-eye-level perspective, looking from the living room towards the kitchen. It should be bright, inviting, and look like a professional architectural visualization.`},
+**Execution:**
+1.  **Interpret the Blueprint:** The provided image is a 2D floor plan. You must strictly adhere to its layout, room dimensions, and the placement of all doors and windows.
+2.  **Furnish and Decorate:** Fully furnish every room and space shown in the floor plan. The furniture, materials, colors, and lighting must be consistent with the user's stated style.
+3.  **Apply Style:**
+    *   **Architectural Style:** ${architecturalStyle}
+    *   **Aesthetic Preferences:** ${aestheticPreferences}
+4.  **Final Quality:** The final rendering must be high-resolution, professionally lit, and visually appealing, accurately representing the look and feel of a lived-in home based on the specified aesthetics.`},
         { media: { url: floorPlanImage } },
       ],
       config: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { generateArchitecturalPrompt } from '@/ai/flows/generate-architectural-prompt';
-import { provideContextualFollowUp } from '@/ai/flows/provide-contextual-follow-up';
+import { generateFloorPlan } from '@/ai/flows/generate-floor-plan';
 import ChatMessage from '@/components/chat-message';
 import { Logo } from '@/components/icons';
 import ProgressTracker from '@/components/progress-tracker';
@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ImageUp, LoaderCircle, Send } from 'lucide-react';
+import Image from 'next/image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 type Requirements = {
@@ -26,6 +27,8 @@ type Requirements = {
   materialPreferences: string;
   aestheticPreferences: string;
   inspirationImage: string;
+  architecturalPrompt: string;
+  floorPlanImage: string;
 };
 
 type Message = {
@@ -35,9 +38,9 @@ type Message = {
 };
 
 type Stage = {
-  key: keyof Requirements | 'welcome' | 'confirmation' | 'generation' | 'done';
-  question: string;
+  key: keyof Requirements | 'welcome' | 'confirmation' | 'generation' | 'floorplan' | 'done';
   title: string;
+  question: string;
   quickReplies?: string[];
 };
 
@@ -52,11 +55,12 @@ const STAGES: Stage[] = [
   { key: 'materialPreferences', title: 'Materials & Look', question: "Let's get into the look and feel. What materials and aesthetic preferences do you have? You can also upload an inspiration image to help me visualize." },
   { key: 'confirmation', title: 'Confirmation', question: "Excellent! I've gathered the initial details. Please review them on the summary panel. Does everything look correct before we proceed?" },
   { key: 'generation', title: 'Generating Prompt', question: "I'm now generating a detailed architectural prompt based on your vision. This may take a moment..." },
-  { key: 'done', title: 'Final Prompt', question: 'Here is the detailed architectural prompt for your dream home. You can use this with generative design tools to create a floor plan.' },
+  { key: 'floorplan', title: 'Floor Plan', question: "Now, I'm creating a draft floor plan based on your prompt. This is an exciting step!" },
+  { key: 'done', title: 'Final Prompt', question: 'Here is the detailed architectural prompt for your dream home and the generated floor plan. You can use this with generative design tools to create a floor plan.' },
 ];
 
 export default function Home() {
-  const [requirements, setRequirements] = useState<Requirements>({} as Requirements);
+  const [requirements, setRequirements] = useState<Partial<Requirements>>({});
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +76,7 @@ export default function Home() {
   const processAIResponse = useCallback(async (currentInput: string, stage: Stage) => {
     if (stage.key === 'welcome') {
       setRequirements(prev => ({ ...prev, vision: currentInput }));
-    } else if (stage.key !== 'confirmation') {
+    } else if (stage.key !== 'confirmation' && stage.key !== 'generation' && stage.key !== 'floorplan' && stage.key !== 'done') {
       const key = stage.key as keyof Omit<Requirements, 'vision' | 'inspirationImage'>;
       setRequirements(prev => ({ ...prev, [key]: currentInput }));
     }
@@ -141,7 +145,7 @@ export default function Home() {
   useEffect(() => {
     const currentStage = STAGES[currentStageIndex];
     if (currentStage) {
-      if(currentStage.key !== 'welcome' && currentStage.key !== 'generation' && currentStage.key !== 'done') {
+      if(currentStage.key !== 'welcome' && !['generation', 'floorplan', 'done'].includes(currentStage.key)) {
         const quickReplies = currentStage.quickReplies ? (
           <div className="flex flex-wrap gap-2 mt-2">
             {currentStage.quickReplies.map(reply => (
@@ -164,8 +168,8 @@ export default function Home() {
             setIsLoading(true);
             addMessage('ai', currentStage.question);
             try {
-                const { architecturalPrompt } = await generateArchitecturalPrompt(requirements);
-                setRequirements(prev => ({...prev, vision: architecturalPrompt}));
+                const { architecturalPrompt } = await generateArchitecturalPrompt(requirements as any);
+                setRequirements(prev => ({...prev, architecturalPrompt: architecturalPrompt}));
                 setCurrentStageIndex(prev => prev + 1);
             } catch(e) {
                 toast({ variant: 'destructive', title: 'Error Generating Prompt', description: 'Could not generate the architectural prompt.'});
@@ -177,8 +181,38 @@ export default function Home() {
         generatePrompt();
       }
 
+      if(currentStage.key === 'floorplan'){
+        const createFloorPlan = async () => {
+            setIsLoading(true);
+            addMessage('ai', currentStage.question);
+            try {
+                const { floorPlanImage } = await generateFloorPlan({ architecturalPrompt: requirements.architecturalPrompt! });
+                setRequirements(prev => ({...prev, floorPlanImage: floorPlanImage}));
+                setCurrentStageIndex(prev => prev + 1);
+            } catch(e) {
+                toast({ variant: 'destructive', title: 'Error Generating Floor Plan', description: 'Could not generate the floor plan image.'});
+                addMessage('ai', 'There was an error generating the floor plan. Please try again later.');
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        createFloorPlan();
+      }
+
       if(currentStage.key === 'done'){
-          addMessage('ai', <div className="space-y-2"><p>{currentStage.question}</p><Card className="bg-background/70"><CardContent className="p-4 whitespace-pre-wrap font-code text-sm">{requirements.vision}</CardContent></Card></div>);
+          addMessage('ai', <div className="space-y-4">
+              <p>{currentStage.question}</p>
+              {requirements.floorPlanImage && (
+                <Card className="bg-background/70">
+                    <CardContent className="p-4">
+                        <Image src={requirements.floorPlanImage} alt="Generated Floor Plan" width={500} height={300} className="rounded-md" />
+                    </CardContent>
+                </Card>
+              )}
+              <Card className="bg-background/70">
+                <CardContent className="p-4 whitespace-pre-wrap font-code text-sm">{requirements.architecturalPrompt}</CardContent>
+              </Card>
+            </div>);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

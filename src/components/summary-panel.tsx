@@ -15,6 +15,8 @@ type Requirements = {
   materialPreferences: string;
   aestheticPreferences: string;
   inspirationImage: string;
+  architecturalPrompt: string;
+  floorPlanImage: string;
 };
 
 interface SummaryPanelProps {
@@ -28,7 +30,7 @@ const formatTitle = (key: string) => {
   };
 
 export default function SummaryPanel({ requirements }: SummaryPanelProps) {
-    const requirementEntries = Object.entries(requirements).filter(([key]) => key !== 'inspirationImage');
+    const requirementEntries = Object.entries(requirements).filter(([key]) => !['inspirationImage', 'architecturalPrompt', 'floorPlanImage'].includes(key));
 
   return (
     <Card className="flex-1 overflow-hidden shadow-lg">

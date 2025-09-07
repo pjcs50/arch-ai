@@ -35,22 +35,17 @@ const generateFloorPlanFlow = ai.defineFlow(
     outputSchema: GenerateFloorPlanOutputSchema,
   },
   async (input) => {
-    //
-    // TEMPORARY WORKAROUND: The Imagen API requires a billing account.
-    // To allow for testing without a billing account, we are returning
-    // a static placeholder image. To re-enable live image generation,
-    // comment out the following line and uncomment the ai.generate call.
-    //
-    return { floorPlanImage: 'https://picsum.photos/1024/768' };
-
-
-    /*
-    // UNCOMMENT THIS BLOCK TO RE-ENABLE LIVE IMAGE GENERATION
+    
     const {media} = await ai.generate({
-      model: 'googleai/imagen-4.0-fast-generate-001',
-      prompt: `Generate a 2D, black and white floor plan with dimensions, labels, and architectural symbols based on the following architectural prompt. The floor plan should be clear, professional, and adhere to standard architectural conventions.
+      model: 'googleai/gemini-2.5-flash-image-preview',
+      prompt: [
+        {text: `Generate a 2D, black and white floor plan with dimensions, labels, and architectural symbols based on the following architectural prompt. The floor plan should be clear, professional, and adhere to standard architectural conventions.
 
-      Architectural Prompt: ${input.architecturalPrompt}`,
+      Architectural Prompt: ${input.architecturalPrompt}`},
+      ],
+      config: {
+        responseModalities: ['TEXT', 'IMAGE'],
+      },
     });
     
     if (!media.url) {
@@ -58,6 +53,5 @@ const generateFloorPlanFlow = ai.defineFlow(
     }
 
     return { floorPlanImage: media.url };
-    */
   }
 );

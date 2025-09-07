@@ -4,7 +4,8 @@
  *
  * This flow takes an existing floor plan image and a set of user requirements,
  * generates a critique and a correction prompt, and then uses Nano Banana's
- * image-editing capabilities to generate an improved floor plan.
+ * image-editing capabilities to generate an improved floor plan through an
+ * iterative loop to enhance quality.
  *
  * - refineFloorPlan - The main function for the refinement process.
  * - RefineFloorPlanInput - The input type for the function.
@@ -22,6 +23,10 @@ const RefineFloorPlanInputSchema = z.object({
     ),
   requirements: z.string().describe("The user's original architectural requirements as a single block of text."),
   originalPrompt: z.string().describe("The original prompt used to generate the floor plan."),
+  onStep: z.function(
+    z.tuple([z.string()]),
+    z.promise(z.void())
+  ).optional().describe("A callback function to report progress updates."),
 });
 export type RefineFloorPlanInput = z.infer<typeof RefineFloorPlanInputSchema>;
 
@@ -43,7 +48,7 @@ export async function refineFloorPlan(input: RefineFloorPlanInput): Promise<Refi
 // Define a schema for the critique and correction prompt
 const CritiqueSchema = z.object({
     critique: z.string().describe("A detailed critique of the floor plan, identifying inconsistencies with the requirements, illegible text, or design flaws."),
-    correctionPrompt: z.string().describe("A detailed prompt for the image generation model to correct the identified flaws."),
+    correctionPrompt: z.string().describe("A detailed prompt for the image generation model to correct the identified flaws. This prompt should be written to EDIT the provided image, not create a new one."),
 });
 
 
@@ -53,53 +58,80 @@ const refineFloorPlanFlow = ai.defineFlow(
     inputSchema: RefineFloorPlanInputSchema,
     outputSchema: RefineFloorPlanOutputSchema,
   },
-  async ({ floorPlanImage, requirements, originalPrompt }) => {
+  async ({ floorPlanImage, requirements, originalPrompt, onStep }) => {
 
-    // Step 1: Use a powerful model to critique the image and generate a correction prompt.
-    const critiqueResponse = await ai.generate({
-        model: 'googleai/gemini-2.5-flash',
-        prompt: [
-            { text: `You are a Master Architect. Your task is to critique a floor plan image based on a user's requirements and the original generation prompt. Identify all issues, including:
--   Inconsistencies with the user's requirements (e.g., wrong room count, incorrect square footage).
--   Illegible text, dimensions, or symbols.
--   Violations of the universal design principles mentioned in the original prompt.
--   Any other architectural or logical flaws.
+    const reportStep = async (message: string) => {
+        if (onStep) await onStep(message);
+    };
 
-Based on your critique, generate a highly detailed, specific correction prompt for an image generation model to fix these issues. This prompt should instruct the model to edit the provided image.
+    let currentImage = floorPlanImage;
+    const ITERATIONS = 2;
+
+    for (let i = 0; i < ITERATIONS; i++) {
+        const isFinalPass = i === ITERATIONS - 1;
+        
+        await reportStep(`Refining plan (Pass ${i + 1} of ${ITERATIONS})...`);
+
+        // Step 1: Use a powerful model to critique the image and generate a correction prompt.
+        const critiquePrompt = `You are a Master Architect. Your task is to critique a floor plan image.
+        
+This is refinement pass ${i + 1} of ${ITERATIONS}.
+${isFinalPass 
+? `On this FINAL pass, focus exclusively on visual polish and legibility. IGNORE any previous layout instructions. Your only job is to fix:
+    - **Text:** Identify any blurry, warped, or unreadable text. Your correction prompt must instruct the model to re-draw the text cleanly and boldly. Check for spelling errors.
+    - **Dimensions:** Ensure all dimension lines are straight, clear, and easy to read.
+    - **Symbols:** Make sure all architectural symbols are clean and standard.`
+: `On this pass, focus on major architectural and functional issues. Compare the floor plan to the user's requirements and identify all inconsistencies, including:
+    - Incorrect room counts, sizes, or layouts.
+    - Violations of universal design principles (e.g., poor circulation, bad zoning).
+    - Mismatches with the requested architectural style.`
+}
+
+Based on your critique, generate a highly detailed, specific correction prompt for an image generation model to *edit and fix* the provided image.
 
 USER REQUIREMENTS:
 ${requirements}
 
 ORIGINAL GENERATION PROMPT:
-${originalPrompt}` },
-            { media: { url: floorPlanImage } },
-        ],
-        output: {
-            schema: CritiqueSchema
-        },
-    });
-    
-    const { critique, correctionPrompt } = critiqueResponse.output!;
-    console.log("AI Critique:", critique);
-    console.log("Correction Prompt:", correctionPrompt);
+${originalPrompt}`;
+
+        const critiqueResponse = await ai.generate({
+            model: 'googleai/gemini-2.5-flash',
+            prompt: [
+                { text: critiquePrompt },
+                { media: { url: currentImage } },
+            ],
+            output: {
+                schema: CritiqueSchema
+            },
+        });
+        
+        const { critique, correctionPrompt } = critiqueResponse.output!;
+        console.log(`AI Critique (Pass ${i + 1}):`, critique);
+        console.log(`Correction Prompt (Pass ${i + 1}):`, correctionPrompt);
+        await reportStep(isFinalPass ? `Polishing details and text...` : `Correcting layout and flow...`);
 
 
-    // Step 2: Use Nano Banana to edit the image based on the correction prompt.
-    const { media } = await ai.generate({
-      model: 'googleai/gemini-2.5-flash-image-preview',
-      prompt: [
-        { text: correctionPrompt },
-        { media: { url: floorPlanImage } }
-      ],
-      config: {
-        responseModalities: ['TEXT', 'IMAGE'],
-      },
-    });
+        // Step 2: Use Nano Banana to edit the image based on the correction prompt.
+        const { media } = await ai.generate({
+            model: 'googleai/gemini-2.5-flash-image-preview',
+            prompt: [
+                { text: correctionPrompt },
+                { media: { url: currentImage } }
+            ],
+            config: {
+                responseModalities: ['TEXT', 'IMAGE'],
+            },
+        });
 
-    if (!media.url) {
-      throw new Error('Image refinement failed.');
+        if (!media.url) {
+            throw new Error(`Image refinement failed on pass ${i + 1}.`);
+        }
+
+        currentImage = media.url;
     }
 
-    return { refinedFloorPlanImage: media.url };
+
+    return { refinedFloorPlanImage: currentImage };
   }
 );

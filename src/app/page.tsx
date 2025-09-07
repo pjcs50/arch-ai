@@ -1,3 +1,4 @@
+
 "use client";
 
 import { architectAgent } from '@/ai/flows/architect-agent';
@@ -146,7 +147,17 @@ export default function Home() {
 
   // This effect handles showing the confirmation buttons
   useEffect(() => {
-    if (currentStageKey === 'confirmation' && !isLoading) {
+    const isConfirmationMessagePresent = messages.some(m => {
+        if (typeof m.content !== 'object' || m.content === null || !('props' in m.content)) return false;
+        const content = m.content as React.ReactElement;
+        // Check for the specific confirmation prompt
+        if (typeof content?.props?.children?.[0]?.props?.children === 'string') {
+            return content.props.children[0].props.children.includes("Great! I've gathered all the initial details.");
+        }
+        return false;
+    });
+
+    if (currentStageKey === 'confirmation' && !isLoading && !isConfirmationMessagePresent) {
       addMessage('ai', 
         <div className="space-y-3">
           <p>Great! I've gathered all the initial details. Please review the summary on the left one last time.</p>
@@ -162,13 +173,14 @@ export default function Home() {
         </div>, true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStageKey, isLoading]);
+  }, [currentStageKey, isLoading, messages]);
 
 
   const onUpdateRequirements = (newRequirements: Partial<Requirements>) => {
     setRequirements(newRequirements);
     // Remove the last confirmation message if it exists
     setMessages(prev => prev.filter(m => {
+      if (typeof m.content !== 'object' || m.content === null || !('props' in m.content)) return true;
       const content = m.content as React.ReactElement;
       if (typeof content?.props?.children?.[0]?.props?.children === 'string') {
         return !content.props.children[0].props.children.includes("Great! I've gathered all the initial details.");
@@ -299,16 +311,22 @@ export default function Home() {
               // First, generate the initial floor plan
               const { floorPlanImage: v1Image } = await generateFloorPlan({ architecturalPrompt: requirements.architecturalPrompt! });
               
-              addMessage('ai', "Draft created. Now, I'll ask our Master Architect AI to review and refine it for accuracy and quality. This is the key step!", true);
+              addMessage('ai', "Draft created. Now, our Master Architect AI will review and refine it for accuracy and quality. This is the key step!", true);
               
               const allRequirements = Object.entries(requirements)
+                .filter(([key]) => !['inspirationImage', 'architecturalPrompt', 'floorPlanImage', 'interiorImage'].includes(key) && requirements[key as keyof typeof requirements])
                 .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').toUpperCase()}: ${value}`)
                 .join('\n');
+              
+              const refinementCallback = (stepMessage: string) => {
+                addMessage('ai', stepMessage, true);
+              };
 
               const { refinedFloorPlanImage } = await refineFloorPlan({
                   floorPlanImage: v1Image,
                   requirements: allRequirements,
                   originalPrompt: requirements.architecturalPrompt!,
+                  onStep: refinementCallback,
               });
 
               setRequirements(prev => ({...prev, floorPlanImage: refinedFloorPlanImage}));

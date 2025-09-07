@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Requirements = {
   vision: string;
@@ -28,7 +28,6 @@ type Requirements = {
 interface SummaryPanelProps {
   requirements: Partial<Requirements>;
   onUpdateRequirements: (newRequirements: Partial<Requirements>) => void;
-  isConversationDone: boolean;
 }
 
 const formatTitle = (key: string) => {
@@ -39,9 +38,13 @@ const formatTitle = (key: string) => {
     .replace(/^./, str => str.toUpperCase());
 };
 
-export default function SummaryPanel({ requirements, onUpdateRequirements, isConversationDone }: SummaryPanelProps) {
+export default function SummaryPanel({ requirements, onUpdateRequirements }: SummaryPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [editableRequirements, setEditableRequirements] = useState(requirements);
+
+  useEffect(() => {
+    setEditableRequirements(requirements);
+  }, [requirements]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -53,9 +56,10 @@ export default function SummaryPanel({ requirements, onUpdateRequirements, isCon
     setIsOpen(false);
   };
 
-  const requirementEntries = Object.entries(requirements).filter(([key]) => !['inspirationImage', 'architecturalPrompt', 'floorPlanImage', 'vision'].includes(key) && requirements[key as keyof typeof requirements]);
+  const requirementEntries = Object.entries(requirements).filter(([key]) => !['inspirationImage', 'architecturalPrompt', 'floorPlanImage', 'vision', 'interiorImage'].includes(key) && requirements[key as keyof typeof requirements]);
 
-  const editableFields = Object.keys(requirements).filter(key => !['inspirationImage', 'architecturalPrompt', 'floorPlanImage'].includes(key)) as (keyof Requirements)[];
+  const editableFields = Object.keys(requirements).filter(key => !['inspirationImage', 'architecturalPrompt', 'floorPlanImage', 'interiorImage'].includes(key)) as (keyof Omit<Requirements, 'interiorImage'>)[];
+
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>

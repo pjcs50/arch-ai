@@ -100,9 +100,7 @@ export default function Home() {
   }, []);
 
   const handleUpdateRequirements = (newRequirements: Partial<Requirements>) => {
-    setRequirements(newRequirements);
-    addMessage('ai', 'I have updated your requirements. Please review them again and let me know if they are correct.', true);
-    setCurrentStageKey('confirmation');
+    onUpdateRequirements(newRequirements);
   };
 
   const handleSendMessage = useCallback(async (message: string) => {
@@ -186,6 +184,12 @@ export default function Home() {
     toast({ title: `${filename} download started!` });
   };
 
+  const onUpdateRequirements = (newRequirements: Partial<Requirements>) => {
+    setRequirements(newRequirements);
+    addMessage('ai', 'I have updated your requirements. Please review them again and let me know if they are correct.', true);
+    setCurrentStageKey('confirmation');
+  };
+
   const handleGenerateInterior = async () => {
     if(!requirements.floorPlanImage || !requirements.aestheticPreferences || !requirements.architecturalStyle) return;
     setIsLoading(true);
@@ -232,7 +236,7 @@ export default function Home() {
   }, []);
 
   const currentStageIndex = STAGE_KEYS.indexOf(currentStageKey);
-  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('confirmation');
+  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('generation');
 
   useEffect(() => {
     const performGeneration = async () => {
@@ -354,8 +358,7 @@ export default function Home() {
         <ProgressTracker stages={Object.values(STAGE_TITLES)} currentStageIndex={currentStageIndex} />
         <SummaryPanel 
           requirements={requirements} 
-          onUpdateRequirements={handleUpdateRequirements}
-          isConversationDone={isConversationDone}
+          onUpdateRequirements={onUpdateRequirements}
         />
       </aside>
 

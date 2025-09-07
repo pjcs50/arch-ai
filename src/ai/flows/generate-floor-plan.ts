@@ -19,7 +19,7 @@ const GenerateFloorPlanOutputSchema = z.object({
   floorPlanImage: z
     .string()
     .describe(
-      "The generated floor plan image as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "The generated floor plan image as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'"
     ),
 });
 export type GenerateFloorPlanOutput = z.infer<typeof GenerateFloorPlanOutputSchema>;
@@ -39,7 +39,7 @@ const generateFloorPlanFlow = ai.defineFlow(
     const {media} = await ai.generate({
       model: 'googleai/gemini-2.5-flash-image-preview',
       prompt: [
-        {text: `You are an expert architectural CAD technician. Your task is to generate a professional, high-quality 2D floor plan based on a set of requirements.
+        {text: `You are an expert architectural designer and CAD technician. Your task is to generate a professional, high-quality 2D floor plan based on a set of requirements. You must strictly adhere to universal design principles and avoid common architectural failures.
 
 **CRITICAL INSTRUCTIONS:**
 1.  **Output Format:** Generate a single, clean, black and white 2D floor plan image.
@@ -56,7 +56,29 @@ const generateFloorPlanFlow = ai.defineFlow(
     *   Draw the specified kitchen island with seating clearly marked.
 5.  **Accuracy:** Adhere STRICTLY to the room counts and features specified in the prompt (e.g., exactly 4 bedrooms, 3.5 bathrooms).
 
-**Architectural Prompt to Execute:**
+---
+**UNIVERSAL ARCHITECTURAL DESIGN FAILURES (MUST AVOID):**
+
+*   **Broken Functional Zoning:** Do NOT scatter wet zones (bathrooms, kitchen); group them. Do NOT place noisy zones (kitchen) next to quiet zones (office). Ensure a clear public/private gradient.
+*   **Circulation Disasters:** Do NOT obstruct primary workflows (like the kitchen triangle). Do NOT have hallways that lead nowhere. Avoid forcing traffic through rooms. Create a clear main circulation spine.
+*   **Impossible Structural Scenarios:** Do NOT create large unsupported spans without indicating beams or columns. Do NOT place stairs in a way that creates structural issues for joists.
+*   **Anti-Functional Layouts:** Ensure rooms are shaped to allow for standard furniture placement. Do NOT destroy the kitchen work triangle. Provide adequate storage.
+*   **Privacy & Acoustics Ignored:** Create buffer zones between noisy and quiet areas. Avoid unwanted sightlines.
+*   **Wasted Space:** Minimize circulation area and avoid oddly shaped, unusable spaces.
+*   **Daylight & Ventilation Ignored:** Do not create internal rooms without windows. Place windows strategically based on orientation.
+*   **Accessibility Absent:** Ensure hallways are a minimum of 3'6" (1.1m) wide.
+
+---
+**UNIVERSAL DESIGN PRINCIPLES (MUST ENFORCE):**
+
+*   **Spatial Organization:** Group wet areas. Create a clear public-to-private progression. Establish a primary circulation spine.
+*   **Structural Logic:** Indicate load-bearing walls. Place stairs in dedicated structural bays.
+*   **Human Factors:** Maintain the kitchen work triangle. Size rooms for standard furniture with clearance. Include adequate storage (aim for ~10% of floor area).
+*   **Building Performance:** Place windows on all exterior walls for light and ventilation.
+*   **Proportionality:** Size rooms appropriately for their function. Minimize circulation to maximize livable space.
+
+---
+**ARCHITECTURAL PROMPT TO EXECUTE:**
 ${input.architecturalPrompt}`},
       ],
       config: {

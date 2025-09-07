@@ -180,7 +180,7 @@ export default function Home() {
   }, []);
 
   const currentStageIndex = STAGE_KEYS.indexOf(currentStageKey);
-  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('confirmation');
+  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('generation');
 
   useEffect(() => {
     const performGeneration = async () => {

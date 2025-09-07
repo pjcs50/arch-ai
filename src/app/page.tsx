@@ -99,10 +99,12 @@ export default function Home() {
     setInput('');
     setIsLoading(true);
 
-    const nonRhetoricalMessages = messages.filter(m => !m.isRhetorical && typeof m.content === 'string').map(m => ({
-        role: m.sender === 'user' ? 'user' : 'model',
-        content: [{ text: m.content as string }]
-    }));
+    const nonRhetoricalMessages = messages
+      .filter(m => !m.isRhetorical && typeof m.content === 'string')
+      .map(m => ({
+          role: m.sender === 'user' ? 'user' : 'model',
+          content: [{ text: m.content as string }]
+      }));
 
     try {
       const result = await architectAgent({
@@ -184,14 +186,19 @@ export default function Home() {
 
   useEffect(() => {
     const performGeneration = async () => {
-      if(currentStageKey === 'generation'){
+      if(currentStageKey === 'generation' && requirements.rooms){
           setIsLoading(true);
           addMessage('ai', "I'm now generating a detailed architectural prompt based on your vision. This may take a moment...", true);
           try {
-              const { architecturalPrompt } = await generateArchitecturalPrompt(requirements as any);
+              const { architecturalPrompt } = await generateArchitecturalPrompt({
+                ...requirements,
+                numRooms: requirements.rooms, // Map rooms to numRooms
+                roomTypes: requirements.rooms, // and roomTypes
+              } as any);
               setRequirements(prev => ({...prev, architecturalPrompt: architecturalPrompt}));
               setCurrentStageKey('floorplan');
           } catch(e) {
+              console.error(e)
               toast({ variant: 'destructive', title: 'Error Generating Prompt', description: 'Could not generate the architectural prompt.'});
               addMessage('ai', 'There was an error generating the prompt. Please try again later.');
               setCurrentStageKey('confirmation'); // Go back to confirmation
@@ -313,3 +320,5 @@ export default function Home() {
     </div>
   );
 }
+
+    

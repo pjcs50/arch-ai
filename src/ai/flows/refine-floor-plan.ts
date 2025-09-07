@@ -23,10 +23,6 @@ const RefineFloorPlanInputSchema = z.object({
     ),
   requirements: z.string().describe("The user's original architectural requirements as a single block of text."),
   originalPrompt: z.string().describe("The original prompt used to generate the floor plan."),
-  onStep: z.function(
-    z.tuple([z.string()]),
-    z.promise(z.void())
-  ).optional().describe("A callback function to report progress updates."),
 });
 export type RefineFloorPlanInput = z.infer<typeof RefineFloorPlanInputSchema>;
 
@@ -58,11 +54,7 @@ const refineFloorPlanFlow = ai.defineFlow(
     inputSchema: RefineFloorPlanInputSchema,
     outputSchema: RefineFloorPlanOutputSchema,
   },
-  async ({ floorPlanImage, requirements, originalPrompt, onStep }) => {
-
-    const reportStep = async (message: string) => {
-        if (onStep) await onStep(message);
-    };
+  async ({ floorPlanImage, requirements, originalPrompt }) => {
 
     let currentImage = floorPlanImage;
     const ITERATIONS = 2;
@@ -70,7 +62,7 @@ const refineFloorPlanFlow = ai.defineFlow(
     for (let i = 0; i < ITERATIONS; i++) {
         const isFinalPass = i === ITERATIONS - 1;
         
-        await reportStep(`Refining plan (Pass ${i + 1} of ${ITERATIONS})...`);
+        console.log(`Refining plan (Pass ${i + 1} of ${ITERATIONS})...`);
 
         // Step 1: Use a powerful model to critique the image and generate a correction prompt.
         const critiquePrompt = `You are a Master Architect. Your task is to critique a floor plan image.
@@ -109,8 +101,6 @@ ${originalPrompt}`;
         const { critique, correctionPrompt } = critiqueResponse.output!;
         console.log(`AI Critique (Pass ${i + 1}):`, critique);
         console.log(`Correction Prompt (Pass ${i + 1}):`, correctionPrompt);
-        await reportStep(isFinalPass ? `Polishing details and text...` : `Correcting layout and flow...`);
-
 
         // Step 2: Use Nano Banana to edit the image based on the correction prompt.
         const { media } = await ai.generate({

@@ -152,7 +152,7 @@ export default function Home() {
         const content = m.content as React.ReactElement;
         // Check for the specific confirmation prompt
         if (typeof content?.props?.children?.[0]?.props?.children === 'string') {
-            return content.props.children[0].props.children.includes("Great! I've gathered all the initial details.");
+            return content.props.children[0].props.children.includes("Great, it looks like I have all the initial details.");
         }
         return false;
     });
@@ -160,11 +160,11 @@ export default function Home() {
     if (currentStageKey === 'confirmation' && !isLoading && !isConfirmationMessagePresent) {
       addMessage('ai', 
         <div className="space-y-3">
-          <p>Great! I've gathered all the initial details. Please review the summary on the left one last time.</p>
+          <p>Great, it looks like I have all the initial details. Please review the summary on the left.</p>
           <p>Does everything look correct? You can confirm to proceed or make changes.</p>
           <div className="flex gap-2 pt-2">
-            <Button onClick={() => setCurrentStageKey('generation')}>
-              <Sparkles className="mr-2 h-4 w-4" /> Confirm & Generate
+            <Button onClick={() => handleSendMessage('yes')}>
+              <Sparkles className="mr-2 h-4 w-4" /> Yes, looks good!
             </Button>
             <Button variant="outline" onClick={() => setIsSummaryPanelOpen(true)}>
               Make Changes
@@ -173,7 +173,7 @@ export default function Home() {
         </div>, true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStageKey, isLoading, messages]);
+  }, [currentStageKey, isLoading, messages, handleSendMessage]);
 
 
   const onUpdateRequirements = (newRequirements: Partial<Requirements>) => {
@@ -183,7 +183,7 @@ export default function Home() {
       if (typeof m.content !== 'object' || m.content === null || !('props' in m.content)) return true;
       const content = m.content as React.ReactElement;
       if (typeof content?.props?.children?.[0]?.props?.children === 'string') {
-        return !content.props.children[0].props.children.includes("Great! I've gathered all the initial details.");
+        return !content.props.children[0].props.children.includes("Great, it looks like I have all the initial details.");
       }
       return true;
     }));
@@ -306,27 +306,21 @@ export default function Home() {
       // Stage 2: Generate and then Refine Floor Plan
       if(currentStageKey === 'refinement' && requirements.architecturalPrompt){
           setIsLoading(true);
-          addMessage('ai', "Creating a draft floor plan...", true);
+          addMessage('ai', "Creating a draft floor plan and then passing it to our Master Architect AI for refinement. This is the key step!", true);
+          
           try {
               // First, generate the initial floor plan
               const { floorPlanImage: v1Image } = await generateFloorPlan({ architecturalPrompt: requirements.architecturalPrompt! });
-              
-              addMessage('ai', "Draft created. Now, our Master Architect AI will review and refine it for accuracy and quality. This is the key step!", true);
               
               const allRequirements = Object.entries(requirements)
                 .filter(([key]) => !['inspirationImage', 'architecturalPrompt', 'floorPlanImage', 'interiorImage'].includes(key) && requirements[key as keyof typeof requirements])
                 .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').toUpperCase()}: ${value}`)
                 .join('\n');
               
-              const refinementCallback = (stepMessage: string) => {
-                addMessage('ai', stepMessage, true);
-              };
-
               const { refinedFloorPlanImage } = await refineFloorPlan({
                   floorPlanImage: v1Image,
                   requirements: allRequirements,
                   originalPrompt: requirements.architecturalPrompt!,
-                  onStep: refinementCallback,
               });
 
               setRequirements(prev => ({...prev, floorPlanImage: refinedFloorPlanImage}));
@@ -402,6 +396,7 @@ export default function Home() {
           onUpdateRequirements={onUpdateRequirements}
           isOpen={isSummaryPanelOpen}
           setIsOpen={setIsSummaryPanelOpen}
+          isConversationDone={isConversationDone}
         />
       </aside>
 
@@ -425,7 +420,7 @@ export default function Home() {
               }}
               placeholder="Type your message here..."
               className="pr-24 min-h-[48px] resize-none"
-              disabled={isLoading || isConversationDone}
+              disabled={isLoading || currentStageKey === 'confirmation' || isConversationDone}
             />
             <div className="absolute top-1/2 -translate-y-1/2 right-3 flex gap-2">
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
@@ -453,5 +448,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

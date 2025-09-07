@@ -169,10 +169,13 @@ export default function Home() {
     setRequirements(newRequirements);
     // Remove the last confirmation message if it exists
     setMessages(prev => prev.filter(m => {
-      if (typeof m.content !== 'object') return true;
       const content = m.content as React.ReactElement;
-      return !content?.props?.children?.toString().includes("Great! I've gathered all the initial details.");
+      if (typeof content?.props?.children?.[0]?.props?.children === 'string') {
+        return !content.props.children[0].props.children.includes("Great! I've gathered all the initial details.");
+      }
+      return true;
     }));
+
     addMessage('ai', 'I have updated your requirements. Please review them again and let me know if they are correct.', true);
     setCurrentStageKey('confirmation');
   };
@@ -253,7 +256,7 @@ export default function Home() {
   }, []);
 
   const currentStageIndex = STAGE_KEYS.indexOf(currentStageKey);
-  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('confirmation');
+  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('generation');
 
   useEffect(() => {
     const performGeneration = async () => {
@@ -420,7 +423,7 @@ export default function Home() {
               </Button>
               <Button 
                 onClick={() => handleSendMessage(input)} 
-                disabled={isLoading || !input.trim() || isConversationDone}
+                disabled={isLoading || !input.trim() || currentStageKey === 'confirmation' || isConversationDone}
                 aria-label="Send Message"
               >
                 <Send className="h-5 w-5" />
@@ -432,3 +435,5 @@ export default function Home() {
     </div>
   );
 }
+
+    

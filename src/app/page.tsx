@@ -90,6 +90,7 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentStageKey, setCurrentStageKey] = useState<string>('introduction');
+  const [isSummaryPanelOpen, setIsSummaryPanelOpen] = useState(false);
   
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,10 +99,6 @@ export default function Home() {
   const addMessage = useCallback((sender: 'user' | 'ai', content: React.ReactNode, isRhetorical = false) => {
     setMessages(prev => [...prev, { id: Date.now() + Math.random(), sender, content, isRhetorical }]);
   }, []);
-
-  const handleUpdateRequirements = (newRequirements: Partial<Requirements>) => {
-    onUpdateRequirements(newRequirements);
-  };
 
   const handleSendMessage = useCallback(async (message: string) => {
     if (!message.trim() || isLoading) return;
@@ -118,29 +115,22 @@ export default function Home() {
       }));
 
     try {
-      console.log('Sending to architectAgent:', {
-        history: nonRhetoricalMessages,
-        requirements,
-        currentMessage: message,
-      });
       const result = await architectAgent({
         history: nonRhetoricalMessages as any,
         requirements,
         currentMessage: message,
       });
-      console.log('Received from architectAgent:', result);
-
 
       if(result.requirements) {
-        setRequirements(result.requirements);
+        setRequirements(prev => ({...prev, ...result.requirements}));
       }
+      
+      addMessage('ai', result.response);
       
       if(result.nextStage) {
         setCurrentStageKey(result.nextStage);
       }
       
-      addMessage('ai', result.response);
-
     } catch (error) {
       console.error(error);
       toast({
@@ -153,6 +143,39 @@ export default function Home() {
       setIsLoading(false);
     }
   }, [isLoading, addMessage, toast, messages, requirements]);
+
+  // This effect handles showing the confirmation buttons
+  useEffect(() => {
+    if (currentStageKey === 'confirmation' && !isLoading) {
+      addMessage('ai', 
+        <div className="space-y-3">
+          <p>Great! I've gathered all the initial details. Please review the summary on the left one last time.</p>
+          <p>Does everything look correct? You can confirm to proceed or make changes.</p>
+          <div className="flex gap-2 pt-2">
+            <Button onClick={() => setCurrentStageKey('generation')}>
+              <Sparkles className="mr-2 h-4 w-4" /> Confirm & Generate
+            </Button>
+            <Button variant="outline" onClick={() => setIsSummaryPanelOpen(true)}>
+              Make Changes
+            </Button>
+          </div>
+        </div>, true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStageKey, isLoading]);
+
+
+  const onUpdateRequirements = (newRequirements: Partial<Requirements>) => {
+    setRequirements(newRequirements);
+    // Remove the last confirmation message if it exists
+    setMessages(prev => prev.filter(m => {
+      if (typeof m.content !== 'object') return true;
+      const content = m.content as React.ReactElement;
+      return !content?.props?.children?.toString().includes("Great! I've gathered all the initial details.");
+    }));
+    addMessage('ai', 'I have updated your requirements. Please review them again and let me know if they are correct.', true);
+    setCurrentStageKey('confirmation');
+  };
   
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -182,12 +205,6 @@ export default function Home() {
     link.click();
     document.body.removeChild(link);
     toast({ title: `${filename} download started!` });
-  };
-
-  const onUpdateRequirements = (newRequirements: Partial<Requirements>) => {
-    setRequirements(newRequirements);
-    addMessage('ai', 'I have updated your requirements. Please review them again and let me know if they are correct.', true);
-    setCurrentStageKey('confirmation');
   };
 
   const handleGenerateInterior = async () => {
@@ -236,7 +253,7 @@ export default function Home() {
   }, []);
 
   const currentStageIndex = STAGE_KEYS.indexOf(currentStageKey);
-  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('generation');
+  const isConversationDone = currentStageIndex >= STAGE_KEYS.indexOf('confirmation');
 
   useEffect(() => {
     const performGeneration = async () => {
@@ -311,7 +328,10 @@ export default function Home() {
               <p>The final, refined floor plan is ready! I've incorporated feedback from our AI architect to ensure it's as accurate as possible.</p>
               {requirements.floorPlanImage && (
                 <Card className="bg-card/70">
-                    <CardContent className="p-2">
+                    <CardHeader className="p-4">
+                        <CardTitle className="text-base">Refined Floor Plan</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-2 pt-0">
                         <Image src={requirements.floorPlanImage} alt="Generated Floor Plan" width={1024} height={1024} className="rounded-md w-full h-auto" />
                     </CardContent>
                 </Card>
@@ -359,6 +379,8 @@ export default function Home() {
         <SummaryPanel 
           requirements={requirements} 
           onUpdateRequirements={onUpdateRequirements}
+          isOpen={isSummaryPanelOpen}
+          setIsOpen={setIsSummaryPanelOpen}
         />
       </aside>
 

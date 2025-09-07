@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,6 +28,8 @@ type Requirements = {
 interface SummaryPanelProps {
   requirements: Partial<Requirements>;
   onUpdateRequirements: (newRequirements: Partial<Requirements>) => void;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
 }
 
 const formatTitle = (key: string) => {
@@ -38,8 +40,7 @@ const formatTitle = (key: string) => {
     .replace(/^./, str => str.toUpperCase());
 };
 
-export default function SummaryPanel({ requirements, onUpdateRequirements }: SummaryPanelProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function SummaryPanel({ requirements, onUpdateRequirements, isOpen, setIsOpen }: SummaryPanelProps) {
   const [editableRequirements, setEditableRequirements] = useState(requirements);
 
   useEffect(() => {
@@ -124,9 +125,9 @@ export default function SummaryPanel({ requirements, onUpdateRequirements }: Sum
             ))}
           </div>
         </ScrollArea>
-        <div className="flex justify-end">
+        <DialogFooter>
             <Button onClick={handleSave}>Save Changes</Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

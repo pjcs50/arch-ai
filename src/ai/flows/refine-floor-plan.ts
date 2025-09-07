@@ -43,8 +43,8 @@ export async function refineFloorPlan(input: RefineFloorPlanInput): Promise<Refi
 
 // Define a schema for the critique and correction prompt
 const CritiqueSchema = z.object({
-    critique: z.string().describe("A detailed critique of the floor plan, identifying inconsistencies with the requirements, illegible text, or design flaws."),
-    correctionPrompt: z.string().describe("A detailed prompt for the image generation model to correct the identified flaws. This prompt should be written to EDIT the provided image, not create a new one."),
+    critique: z.string().optional().describe("A detailed critique of the floor plan, identifying inconsistencies with the requirements, illegible text, or design flaws."),
+    correctionPrompt: z.string().describe("A detailed prompt for the image generation model to correct the identified flaws. This prompt should be written to EDIT the provided image, not create a new one from scratch."),
 });
 
 
@@ -61,39 +61,25 @@ const refineFloorPlanFlow = ai.defineFlow(
 
     for (let i = 0; i < ITERATIONS; i++) {
         const isFinalPass = i === ITERATIONS - 1;
-        let correctionPrompt: string;
+        let critiquePrompt: string;
         
         console.log(`Refining plan (Pass ${i + 1} of ${ITERATIONS})...`);
 
         if (isFinalPass) {
-            // On the final pass, we just want a simple correction prompt string.
-            const polishPrompt = `You are a Master Architect focusing on final polish. Your task is to generate a correction prompt to fix only visual and text issues in the provided floor plan.
+            // On the final pass, focus on polish and legibility.
+            critiquePrompt = `You are a Master Architect focusing on final polish. Your task is to analyze the provided floor plan and generate a correction prompt to fix any remaining visual and text issues.
             
 Analyze the image for:
-- **Text:** Identify any blurry, warped, or unreadable text.
-- **Dimensions:** Ensure all dimension lines are straight, clear, and easy to read.
-- **Symbols:** Make sure all architectural symbols are clean and standard.
+- **Text Legibility:** Identify any blurry, warped, or unreadable text.
+- **Dimension Clarity:** Ensure all dimension lines are straight, clean, and easy to read.
+- **Symbol Consistency:** Make sure all architectural symbols are standard and distinct.
 
-Based on your analysis, write a concise but detailed correction prompt for an image generation model to *edit and fix* only these visual flaws. Respond with ONLY the prompt text itself.`;
-            
-            const polishResponse = await ai.generate({
-                model: 'googleai/gemini-2.5-flash',
-                prompt: [
-                    { text: polishPrompt },
-                    { media: { url: currentImage } },
-                ],
-                output: {
-                    schema: z.string()
-                },
-            });
-
-            correctionPrompt = polishResponse.output!;
-            console.log(`Polishing Prompt (Pass ${i + 1}):`, correctionPrompt);
+Based on your analysis, write a detailed correction prompt for an image generation model to *edit and fix* these visual flaws.`;
         } else {
-            // On the first pass, do a full critique.
-            const critiquePrompt = `You are a Master Architect. Your task is to critique a floor plan image.
+            // On the first pass, do a full critique against requirements.
+            critiquePrompt = `You are a Master Architect. Your task is to critique a floor plan image.
             
-On this pass, focus on major architectural and functional issues. Compare the floor plan to the user's requirements and identify all inconsistencies, including:
+Focus on major architectural and functional issues. Compare the floor plan to the user's requirements and identify all inconsistencies, including:
 - Incorrect room counts, sizes, or layouts.
 - Violations of universal design principles (e.g., poor circulation, bad zoning).
 - Mismatches with the requested architectural style.
@@ -105,23 +91,30 @@ ${requirements}
 
 ORIGINAL GENERATION PROMPT:
 ${originalPrompt}`;
-
-            const critiqueResponse = await ai.generate({
-                model: 'googleai/gemini-2.5-flash',
-                prompt: [
-                    { text: critiquePrompt },
-                    { media: { url: currentImage } },
-                ],
-                output: {
-                    schema: CritiqueSchema
-                },
-            });
-            
-            const { critique, correctionPrompt: cp } = critiqueResponse.output!;
-            correctionPrompt = cp;
-            console.log(`AI Critique (Pass ${i + 1}):`, critique);
-            console.log(`Correction Prompt (Pass ${i + 1}):`, correctionPrompt);
         }
+
+        // Step 1: Generate a critique and a correction prompt.
+        const critiqueResponse = await ai.generate({
+            model: 'googleai/gemini-2.5-flash',
+            prompt: [
+                { text: critiquePrompt },
+                { media: { url: currentImage } },
+            ],
+            output: {
+                schema: CritiqueSchema
+            },
+        });
+        
+        const critiqueOutput = critiqueResponse.output;
+
+        if (!critiqueOutput || !critiqueOutput.correctionPrompt) {
+            throw new Error(`AI failed to generate a correction prompt on pass ${i + 1}.`);
+        }
+        
+        const { critique, correctionPrompt } = critiqueOutput;
+
+        console.log(`AI Critique (Pass ${i + 1}):`, critique || "No critique provided.");
+        console.log(`Correction Prompt (Pass ${i + 1}):`, correctionPrompt);
         
         // Step 2: Use Nano Banana to edit the image based on the generated correction prompt.
         const { media } = await ai.generate({
